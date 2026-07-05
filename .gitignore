@@ -1,0 +1,10 @@
+.venv/
+weather_cache/
+grib_data/
+hysplit/
+dep_runs/
+run_*/
+logs/
+*.ARL
+*.grib2
+hourly_*_*.csv

@@ -1,0 +1,123 @@
+# Nightly plume-site update — STAGING repo (Calvert-City-Plume-Analysis-staging).
+#
+# Each night on a throwaway GitHub runner: simulate yesterday (UTC) with HYSPLIT, write a ~7 MB per-date
+# JSON bundle, rebuild the fetch-based site (retention: newest 30 days + pinned curated days), commit the
+# updated site/ back to this branch (persists the rolling window), and publish it to GitHub Pages. The
+# multi-GB weather files live ONLY on the runner's temp disk and are streamed+deleted mid-run — GitHub
+# only ever stores the ~7 MB bundles.
+#
+# HYSPLIT: the statically-linked x86_64 unregistered build is fetched directly from NOAA's public URL
+# (verified by SHA1) and cached — no secrets, no private hosting. eccodes comes from apt (libeccodes-tools);
+# the tarball doesn't bundle it, and the engine falls back to the system install.
+#
+# Pages source must be set to "GitHub Actions" once in repo Settings → Pages.
+
+name: Nightly plume update
+
+on:
+  schedule:
+    - cron: "30 7 * * *"       # 07:30 UTC ≈ 02:30 America/Chicago
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Specific date YYYY-MM-DD (blank = yesterday UTC)"
+        required: false
+      days_back:
+        description: "Ensure the last N days exist"
+        required: false
+        default: "1"
+
+permissions:
+  contents: write               # commit the updated site/ back to the branch
+  pages: write                  # publish to GitHub Pages
+  id-token: write               # required by deploy-pages
+
+concurrency:
+  group: daily-plume
+  cancel-in-progress: false
+
+env:
+  HYSPLIT_URL: "https://www.ready.noaa.gov/data/web/models/hysplit4/linux_trial/hysplit.v5.4.2_x86_64_public.tar.gz"
+  HYSPLIT_SHA1: "1e2de556b5794749c950770218751ab863d9f2ce"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330        # HYSPLIT deposition matrix is slow; generous budget
+    steps:
+      - name: Free up runner disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
+          df -h /
+
+      - uses: actions/checkout@v4     # carries the existing per-date bundles (the rolling-window store)
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: System packages (GRIB decode via eccodes + HYSPLIT graphics)
+        run: sudo apt-get update && sudo apt-get install -y libeccodes-tools ghostscript
+
+      - name: Python dependencies
+        run: pip install -r requirements-ci.txt
+
+      - name: Cache HYSPLIT install
+        id: cache-hysplit
+        uses: actions/cache@v4
+        with:
+          path: hysplit
+          key: hysplit-${{ env.HYSPLIT_SHA1 }}
+
+      - name: Download + verify HYSPLIT (unregistered, static x86_64) if not cached
+        if: steps.cache-hysplit.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o hysplit.tar.gz "$HYSPLIT_URL"
+          echo "$HYSPLIT_SHA1  hysplit.tar.gz" | sha1sum -c -
+          mkdir -p hysplit
+          tar xzf hysplit.tar.gz -C hysplit --strip-components=1
+          rm -f hysplit.tar.gz
+          chmod +x hysplit/exec/* || true
+          echo "exec dir:" && ls hysplit/exec | head
+          # smoke-test the static binary actually runs on this runner
+          ./hysplit/exec/hycs_std -h 2>&1 | head -3 || echo "(hycs_std ran; non-zero exit is fine without CONTROL)"
+
+      - name: Run nightly update
+        env:
+          HYSPLIT_ROOT: ${{ github.workspace }}/hysplit
+          PLUME_WEATHER_CACHE: ${{ github.workspace }}/weather_cache
+          ECCODES_DEFINITION_PATH: /usr/share/eccodes/definitions
+        run: |
+          DATE_ARG=""
+          if [ -n "${{ github.event.inputs.date }}" ]; then DATE_ARG="--date ${{ github.event.inputs.date }}"; fi
+          python3 daily_update.py --days-back "${{ github.event.inputs.days_back || '1' }}" $DATE_ARG
+          echo "---- disk after run ----" && df -h /
+
+      - name: Commit updated site back to the branch (rolling-window persistence)
+        run: |
+          git config user.name "plume-bot"
+          git config user.email "plume-bot@users.noreply.github.com"
+          git add site/
+          if git diff --cached --quiet; then
+            echo "No site changes to commit."
+          else
+            git commit -m "Nightly site update $(date -u +%F)"
+            git push
+          fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calvert City Industrial Dispersion Prototype</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet.js Mapping Engine -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Leaflet.heat plugin for smooth gaussian heatmaps -->
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    
+    <style>
+        :root {
+            --bg-dark: #0f0f12;
+            --panel-bg: rgba(20, 20, 25, 0.72);
+            --panel-border: rgba(255, 255, 255, 0.09);
+            --text-main: #f9fafb;
+            --text-muted: #9ca3af;
+            --primary-accent: #3b82f6;
+            --primary-accent-glow: rgba(59, 130, 246, 0.35);
+            --font-family: 'Inter', system-ui, sans-serif;
+            --header-font: 'Outfit', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-dark);
+            font-family: var(--font-family);
+            color: var(--text-main);
+        }
+
+        #map-viewport {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-dark);
+        }
+
+        #particle-canvas {
+            position: absolute;
+            pointer-events: none;
+        }
+
+        /* Dark theme Leaflet Popups (removes white border and tip) */
+        .leaflet-popup-content-wrapper {
+            background: #121214 !important;
+            color: #f3f4f6 !important;
+            padding: 0 !important;
+            border-radius: 12px !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+        }
+
+        .leaflet-popup-content {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        .leaflet-popup-tip {
+            background: #121214 !important;
+            border-left: 1px solid rgba(255, 255, 255, 0.12) !important;
+            border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+            box-shadow: none !important;
+        }
+
+        .leaflet-popup-close-button {
+            color: #9ca3af !important;
+            padding: 8px 8px 0 0 !important;
+        }
+
+        .leaflet-popup-close-button:hover {
+            color: #fff !important;
+            background: transparent !important;
+        }
+
+        /* Glassmorphic Panel Design System */
+        .glass-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: 16px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.65),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* ── Collapsible Panel System ── */
+        .panel-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .panel-collapse-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-muted);
+            border-radius: 6px;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            transition: all 0.2s ease;
+            outline: none;
+            flex-shrink: 0;
+        }
+
+        .panel-collapse-btn:hover {
+            background: rgba(255, 255, 255, 0.14);
+            border-color: rgba(255, 255, 255, 0.25);
+            color: #fff;
+            transform: scale(1.1);
+        }
+
+        .panel-body {
+            overflow: hidden;
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity 0.25s ease,
+                        padding 0.3s ease;
+            max-height: 2000px;
+            opacity: 1;
+        }
+
+        .panel-body.collapsed {
+            max-height: 0;
+            opacity: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        /* Floating restore pills — visible when parent panel is collapsed */
+        .panel-restore-pill {
+            position: absolute;
+            z-index: 1100;
+            display: none;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-family: var(--font-family);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            transition: all 0.25s ease;
+        }
+
+        .panel-restore-pill.visible {
+            display: flex;
+        }
+
+        .panel-restore-pill:hover {
+            transform: scale(1.06);
+        }
+
+        #restore-header {
+            top: 24px;
+            left: 24px;
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            color: #a5b4fc;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        }
+
+        #restore-header:hover {
+            background: rgba(30, 30, 38, 0.85);
+            box-shadow: 0 8px 28px rgba(59, 130, 246, 0.15);
+        }
+
+        #restore-legend {
+            top: 24px;
+            right: 24px;
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            color: #a5b4fc;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        }
+
+        #restore-legend:hover {
+            background: rgba(30, 30, 38, 0.85);
+            box-shadow: 0 8px 28px rgba(59, 130, 246, 0.15);
+        }
+
+        /* Header Panel */
+        .hud-header {
+            position: absolute;
+            top: 24px;
+            left: 24px;
+            z-index: 1100;
+            padding: 20px 24px;
+            width: 380px;
+        }
+
+        .hud-header.panel-hidden {
+            display: none;
+        }
+
+        .hud-header h1 {
+            font-family: var(--header-font);
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 6px;
+            background: linear-gradient(135deg, #ffffff 30%, #a5b4fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hud-header .subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .hud-header .divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.08);
+            margin: 12px 0;
+        }
+
+        .hud-header .meta-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+        }
+
+        .hud-header .meta-val {
+            font-weight: 600;
+            color: #a5b4fc;
+        }
+
+        /* Bottom Controls HUD */
+        .hud-controls {
+            position: absolute;
+            bottom: 36px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1100;
+            width: 680px;
+            padding: 20px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .controls-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .time-readout {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            min-width: 140px;
+        }
+
+        .time-val {
+            font-family: var(--header-font);
+            font-size: 26px;
+            font-weight: 600;
+            color: #fff;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .time-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .playback-actions {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.25);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+            transform: scale(1.05);
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .slider-container {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.12);
+            outline: none;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(0,0,0,0.5);
+            transition: transform 0.1s ease;
+        }
+
+        .slider::-webkit-slider-thumb:hover {
+            transform: scale(1.25);
+            background: #a5b4fc;
+        }
+
+        /* Speed slider specifics */
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: var(--text-muted);
+            min-width: 140px;
+        }
+
+        .speed-control select {
+            background: rgba(20, 20, 25, 0.85);
+            border: 1px solid var(--panel-border);
+            color: var(--text-main);
+            padding: 4px 8px;
+            border-radius: 6px;
+            outline: none;
+            cursor: pointer;
+            font-family: var(--font-family);
+            font-size: 11px;
+        }
+
+        /* Legend Panel */
+        .hud-legend {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            z-index: 1100;
+            width: 360px;
+            padding: 20px;
+            max-height: calc(100vh - 120px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .hud-legend.panel-hidden {
+            display: none;
+        }
+
+        #legend-panel-body {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            flex: 1;
+        }
+
+        .legend-title {
+            font-family: var(--header-font);
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 14px;
+            letter-spacing: -0.01em;
+            color: #fff;
+        }
+
+        .facility-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            padding-right: 4px;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .facility-item {
+            border-radius: 10px;
+            padding: 10px 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .facility-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        .facility-item.disabled {
+            opacity: 0.35;
+        }
+
+        .facility-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .facility-name-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .facility-badge {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            box-shadow: 0 0 8px currentColor;
+        }
+
+        .facility-name {
+            font-weight: 600;
+            font-size: 13px;
+            color: #fff;
+        }
+
+        .toggle-icon {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+
+        .chem-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding-left: 18px;
+            font-size: 11px;
+            color: var(--text-muted);
+            border-left: 1px solid rgba(255, 255, 255, 0.06);
+            margin-top: 4px;
+        }
+
+        .chem-item {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .chem-val {
+            font-weight: 500;
+            color: var(--text-main);
+        }
+
+        /* Tooltip style */
+        .particle-tooltip {
+            position: absolute;
+            z-index: 1200;
+            background: rgba(12, 12, 16, 0.92);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: var(--text-main);
+            font-size: 11px;
+            pointer-events: none;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            display: none;
+            line-height: 1.5;
+            backdrop-filter: blur(8px);
+        }
+
+        .tooltip-header {
+            font-weight: 700;
+            margin-bottom: 4px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 2px;
+            font-family: var(--header-font);
+        }
+
+        /* Map Attribution adjustments */
+        .leaflet-control-attribution {
+            background: rgba(0,0,0,0.85) !important;
+            color: var(--text-muted) !important;
+            font-size: 9px !important;
+        }
+
+        /* Custom Facility Marker DivIcon Overrides */
+        .custom-facility-divicon {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        /* Enable Text Selection inside Leaflet Popups */
+        .leaflet-popup-content, .leaflet-popup-content * {
+            -webkit-user-select: text !important;
+            -moz-user-select: text !important;
+            -ms-user-select: text !important;
+            user-select: text !important;
+        }
+
+        #pollutant-select, #date-picker, #display-mode-select, #deposition-source-select {
+            width: 100%;
+            background: rgba(18, 18, 20, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            padding: 8px 12px;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(4px);
+        }
+        
+        #pollutant-select:hover, #date-picker:hover, #display-mode-select:hover, #deposition-source-select:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        #pollutant-select option, #display-mode-select option, #deposition-source-select option {
+            background: #121214;
+            color: #fff;
+        }
+
+        #date-picker::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            cursor: pointer;
+        }
+
+        /* ── Simulation Sandbox Panel ── */
+        .sandbox-section {
+            margin-top: 14px;
+        }
+
+        .sandbox-toggle-btn {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.18);
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            color: #a5b4fc;
+            font-family: var(--font-family);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            transition: all 0.25s ease;
+        }
+
+        .sandbox-toggle-btn:hover {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.35);
+            box-shadow: 0 0 12px rgba(59, 130, 246, 0.15);
+        }
+
+        .sandbox-toggle-arrow {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 10px;
+        }
+
+        .sandbox-toggle-arrow.expanded {
+            transform: rotate(180deg);
+        }
+
+        .sandbox-body {
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+            padding: 12px;
+            background: rgba(10, 10, 14, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 10px;
+        }
+
+        .sandbox-body.open {
+            display: flex;
+        }
+
+        .sandbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .sandbox-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 10px;
+            color: var(--text-muted);
+            font-weight: 600;
+            letter-spacing: 0.04em;
+        }
+
+        .sandbox-val {
+            font-weight: 700;
+            color: #a5b4fc;
+            font-variant-numeric: tabular-nums;
+            min-width: 56px;
+            text-align: right;
+        }
+
+        .sandbox-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 5px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .sandbox-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #818cf8, #6366f1);
+            cursor: pointer;
+            box-shadow: 0 0 6px rgba(99, 102, 241, 0.5);
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+
+        .sandbox-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.3);
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.7);
+        }
+
+        .sandbox-slider::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #818cf8, #6366f1);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 6px rgba(99, 102, 241, 0.5);
+        }
+
+        .sandbox-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.05);
+            margin: 2px 0;
+        }
+        /* ── Deposition / Air-Layer toggles ── */
+        .dep-toggle { position:relative; display:inline-block; width:30px; height:16px; flex-shrink:0; }
+        .dep-toggle input { display:none; }
+        .dep-toggle-slider { position:absolute; top:0; left:0; right:0; bottom:0; background:#333; border-radius:16px; cursor:pointer; transition:.2s; }
+        .dep-toggle-slider::before { content:""; position:absolute; width:12px; height:12px; left:2px; bottom:2px; background:#555; border-radius:50%; transition:.2s; }
+        .dep-toggle input:checked + .dep-toggle-slider { background:#2a7a4f; }
+        .dep-toggle input:checked + .dep-toggle-slider::before { background:#fff; transform:translateX(14px); }
+        .dep-info-btn { position:relative; cursor:help; font-size:10px; color:var(--text-muted); border:1px solid rgba(255,255,255,.25); border-radius:50%; width:14px; height:14px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+        /* Custom instant-hover tooltip (native title= has a ~3-4s browser delay).
+           Reparented to <body> + position:fixed via JS so the panel's overflow:hidden
+           (collapse animation) can't clip it; JS sets left/top on hover. */
+        .info-pop { display:none; position:fixed; z-index:10000; width:270px; padding:10px 12px; background:#121214; color:#e5e7eb; border:1px solid rgba(255,255,255,.15); border-radius:8px; font-size:10px; line-height:1.55; font-weight:400; letter-spacing:normal; text-align:left; box-shadow:0 10px 28px rgba(0,0,0,.55); white-space:normal; pointer-events:none; }
+        .info-pop b { color:#fff; font-weight:600; }
+        .info-pop .ip-sep { display:block; height:6px; }
+        /* LOCATIONS collapsible section */
+        .loc-toggle-btn { display:flex; align-items:center; justify-content:space-between; width:100%; background:none; border:none; padding:0; cursor:pointer; color:var(--text-muted); font-size:10px; font-weight:600; letter-spacing:.05em; }
+        .loc-toggle-btn:hover { color:var(--text-primary); }
+        .loc-arrow { font-size:8px; transition:transform .2s; transform:rotate(-90deg); }
+        .loc-arrow.expanded { transform:rotate(0deg); }
+        .loc-body { overflow:hidden; max-height:0; opacity:0; transition:max-height .3s ease, opacity .25s ease; }
+        .loc-body.open { max-height:300px; opacity:1; }
+        .loc-swatch { width:11px; height:11px; border-radius:50%; flex-shrink:0; display:inline-block; }
+        .loc-swatch-vet { background:#0d9488; border:1.5px solid #fff; box-shadow:0 0 3px rgba(0,0,0,.4); }
+        /* Vet clinic marker (SVG divIcon has no box; keep pointer cursor) */
+        .vet-clinic-divicon { cursor:pointer; }
+        .vet-clinic-divicon svg { display:block; filter:drop-shadow(0 2px 3px rgba(0,0,0,.45)); }
+        .vet-pop { font-size:12px; color:#f3f4f6; min-width:210px; max-width:250px; padding:11px 15px 12px 15px; box-sizing:border-box; }
+        .vet-pop .vp-title { font-weight:600; font-size:13px; color:#fff; margin-bottom:3px; padding-right:16px; line-height:1.35; }
+        .vet-pop .vp-addr { color:#9ca3af; font-size:11px; margin-bottom:8px; line-height:1.4; }
+        .vet-pop .vp-dep { font-size:11px; line-height:1.55; border-top:1px solid rgba(255,255,255,.12); padding-top:7px; }
+        .vet-pop .vp-more { color:#93c5fd; cursor:pointer; text-decoration:underline; text-decoration-style:dotted; white-space:nowrap; }
+        .vet-pop .vp-more:hover { color:#bfdbfe; }
+        .vet-pop .vp-arrow { font-size:9px; text-decoration:none; display:inline-block; }
+        .vet-pop .vp-chemlist { margin-top:6px; border-top:1px dashed rgba(255,255,255,.12); padding-top:5px; }
+        .vet-pop .vp-chemrow { display:flex; justify-content:space-between; gap:12px; padding:1px 0; color:rgba(255,255,255,.8); font-size:10.5px; }
+        .vet-pop .vp-chemrow span:first-child { text-transform:capitalize; }
+        .dep-chem-pill { display:flex; align-items:center; gap:3px; font-size:9px; color:var(--text-muted); cursor:pointer; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:2px 6px; white-space:nowrap; }
+        .dep-chem-pill input { cursor:pointer; margin:0; }
+        .dep-chem-pill:has(input:checked) { border-color:rgba(255,255,255,.25); color:rgba(255,255,255,.8); }
+        /* ── Hover concentration readout ── */
+        #dep-readout { position:absolute; z-index:9999; pointer-events:none; display:none;
+            background:rgba(10,12,20,.93); border:1px solid rgba(255,255,255,.15); border-radius:8px;
+            padding:8px 10px; font-size:11px; color:#e8e8ef; max-width:260px;
+            box-shadow:0 4px 16px rgba(0,0,0,.45); backdrop-filter:blur(6px); }
+        #dep-readout .dr-title { font-size:9px; color:var(--text-muted); margin-bottom:5px; letter-spacing:.05em; }
+        #dep-readout .dr-chem { font-weight:600; margin-top:4px; }
+        #dep-readout .dr-row { display:flex; justify-content:space-between; gap:14px; color:rgba(255,255,255,.75); }
+    </style>
+</head>
+<body>
+
+    <div id="map-viewport">
+        <!-- Leaflet Map Div -->
+        <div id="map"></div>
+
+        <!-- Overhead Particle Rendering Canvas -->
+        <canvas id="particle-canvas"></canvas>
+
+        <!-- Hover concentration readout -->
+        <div id="dep-readout"></div>
+
+        <!-- Floating Restore Pills (visible when panels are collapsed) -->
+        <div class="panel-restore-pill" id="restore-header">
+            <span>☰</span><span>Controls</span>
+        </div>
+        <div class="panel-restore-pill" id="restore-legend">
+            <span>☰</span><span>Sources</span>
+        </div>
+
+        <!-- HUD Header -->
+        <div class="hud-header glass-panel" id="hud-header-panel">
+            <div class="panel-topbar">
+                <h1 style="margin-bottom:0">Calvert City Plume Analysis</h1>
+                <button class="panel-collapse-btn" id="collapse-header" title="Minimize Panel">−</button>
+            </div>
+            <div class="panel-body" id="header-panel-body">
+                <div class="subtitle" style="margin-top:4px">Multi-date batch chemical dispersion simulation using hourly NOAA HRRR boundary conditions.</div>
+                <div class="divider"></div>
+                <div class="meta-row">
+                    <div style="display: flex; align-items: center; gap: 4px;">STATE: <span class="meta-val">KENTUCKY</span></div>
+                    <div style="display: flex; align-items: center; gap: 4px;">WEATHER: <span class="meta-val">HRRR GRIB2</span></div>
+                </div>
+                <div class="divider"></div>
+                <div style="margin-top: 12px;">
+                    <label for="date-picker" style="font-size: 10px; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 6px; letter-spacing: 0.05em;">SIMULATION DATE</label>
+                    <select id="date-picker"></select>
+                </div>
+                <div style="margin-top: 12px;">
+                    <label for="pollutant-select" style="font-size: 10px; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 6px; letter-spacing: 0.05em;">EPA AIR QUALITY PARAMETER</label>
+                    <select id="pollutant-select">
+                        <!-- Javascript populated -->
+                    </select>
+                </div>
+                <div style="margin-top: 12px;">
+                    <label for="display-mode-select" style="font-size: 10px; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 6px; letter-spacing: 0.05em;">PLUME DISPLAY MODE</label>
+                    <select id="display-mode-select">
+                        <option value="combined" selected>Combined Total Air</option>
+                        <option value="stack">Stacks Only</option>
+                        <option value="fugitive">Fugitive Only</option>
+                    </select>
+                </div>
+
+                <div style="margin-top: 12px;">
+                    <div style="display:flex;align-items:center;gap:5px;margin-bottom:6px;">
+                        <span style="font-size:10px;color:var(--text-muted);font-weight:600;letter-spacing:.05em;">CHEMICAL FILTERS</span>
+                    </div>
+                    <div id="dep-chem-list" style="display:flex;flex-wrap:wrap;gap:3px;max-height:96px;overflow-y:auto;"></div>
+                </div>
+
+                <!-- ══ Layers ══ -->
+                <div class="divider"></div>
+                <div style="margin-top:12px;">
+                    <div style="display:flex;align-items:center;gap:5px;margin-bottom:8px;">
+                        <span style="font-size:10px;color:var(--text-muted);font-weight:600;letter-spacing:.05em;">LAYERS</span>
+                        <span class="dep-info-btn">ⓘ<span class="info-pop">Three independent views of the same release:<span class="ip-sep"></span><b>Soil Deposition (g/m²)</b> — mass that physically settles onto the ground, accumulating over the day. Chlorine &amp; ammonia deposit meaningfully; VOCs barely deposit (tiny footprints — honest).<span class="ip-sep"></span><b>Ground-Level Air (g/m³)</b> — breathing-zone concentration at ~10&nbsp;m, shown per hour. This is what you'd actually inhale; every chemical has a footprint here.<span class="ip-sep"></span><b>Particle Simulation</b> — animated tracers streamed from each facility (colored by source), advected on the HYSPLIT hourly wind. They show <b>how</b> the plume moves and mixes in real time; the footprints show <b>where</b> concentration and deposit end up.<span class="ip-sep"></span>Footprints are straight from HYSPLIT contours (23 hourly frames, sim hours 2–24): deposition accumulates, air is per-hour, particles animate continuously.</span></span>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+                        <span style="font-size:11px;color:var(--text-primary);">Soil Deposition <span style="color:var(--text-muted);font-size:9px;">(g/m²)</span></span>
+                        <label class="dep-toggle"><input type="checkbox" id="dep-layer-toggle" checked><span class="dep-toggle-slider"></span></label>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+                        <span style="font-size:11px;color:var(--text-primary);">Ground-Level Air <span style="color:var(--text-muted);font-size:9px;">(g/m³)</span></span>
+                        <label class="dep-toggle"><input type="checkbox" id="air-layer-toggle" checked><span class="dep-toggle-slider"></span></label>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                        <span style="font-size:11px;color:var(--text-primary);">Particle Simulation <span style="color:var(--text-muted);font-size:9px;">(animated)</span></span>
+                        <label class="dep-toggle"><input type="checkbox" id="particles-toggle" checked><span class="dep-toggle-slider"></span></label>
+                    </div>
+                </div>
+
+                <!-- ══ Locations (landmark layers) ══ -->
+                <div class="divider"></div>
+                <div style="margin-top:12px;">
+                    <button class="loc-toggle-btn" id="locations-toggle" type="button">
+                        <span>LOCATIONS</span>
+                        <span class="loc-arrow expanded" id="locations-arrow">▼</span>
+                    </button>
+                    <div class="loc-body open" id="locations-body">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+                            <span style="font-size:11px;color:var(--text-primary);display:flex;align-items:center;gap:6px;">
+                                <span class="loc-swatch loc-swatch-vet"></span>Veterinary Clinics
+                                <span style="color:var(--text-muted);font-size:9px;" id="vet-count"></span>
+                            </span>
+                            <label class="dep-toggle"><input type="checkbox" id="vet-clinics-toggle" checked><span class="dep-toggle-slider"></span></label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Simulation Sandbox removed: particle motion/appearance are fixed so viewers
+                     can't alter the model. Defaults live in the getSandbox*() getters + the
+                     footprintOpacity constant. -->
+            </div>
+        </div>
+
+        <!-- Legend and Toggles -->
+        <div class="hud-legend glass-panel" id="hud-legend-panel">
+            <div class="panel-topbar">
+                <div class="legend-title" style="margin-bottom:0">Industrial Point Sources</div>
+                <button class="panel-collapse-btn" id="collapse-legend" title="Minimize Panel">−</button>
+            </div>
+            <div class="panel-body" id="legend-panel-body">
+                <div class="facility-list" id="facility-legend">
+                    <!-- Javascript populated -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls HUD -->
+        <div class="hud-controls glass-panel">
+            <div class="controls-row">
+                <div class="time-readout">
+                    <span class="time-val" id="time-display">12:00</span>
+                    <span class="time-label" id="ampm-display">AM</span>
+                </div>
+                
+                <div class="slider-container">
+                    <span style="font-size:10px; color:var(--text-muted)">00:00</span>
+                    <input type="range" min="0.0" max="24.0" step="0.01" value="0.0" class="slider" id="time-slider">
+                    <span style="font-size:10px; color:var(--text-muted)">24:00</span>
+                </div>
+            </div>
+            
+            <div class="controls-row" style="margin-top: 4px;">
+                <div class="playback-actions">
+                    <button class="btn" id="play-btn" title="Play/Pause">
+                        <!-- Play Icon -->
+                        <svg id="play-icon" width="14" height="16" viewBox="0 0 14 16" fill="none" style="display:none;">
+                            <path d="M13 8L1 1V15L13 8Z" fill="white" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+                        </svg>
+                        <!-- Pause Icon -->
+                        <svg id="pause-icon" width="12" height="16" viewBox="0 0 12 16" fill="none">
+                            <path d="M1 1V15M11 1V15" stroke="white" stroke-width="3" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                    <button class="btn" id="restart-btn" title="Restart Simulation">
+                        <!-- Restart SVG -->
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+                            <path d="M21 3v5h-5"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="speed-control">
+                    <span>PLAYBACK SPEED:</span>
+                    <select id="speed-select">
+                        <option value="1">1 Hour/Min</option>
+                        <option value="2" selected>5 Hours/Min</option>
+                        <option value="3">10 Hours/Min</option>
+                        <option value="4">30 Hours/Min</option>
+                        <option value="5">60 Hours/Min</option>
+                    </select>
+                </div>
+                
+                <div style="font-size: 11px; color: var(--text-muted)">
+                    ACTIVE PARTICLES: <span id="active-count" style="font-weight:600; color:#fff">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Interactive Tooltip Overlay -->
+        <div class="particle-tooltip" id="tooltip">
+            <div class="tooltip-header" id="tooltip-title">Facility</div>
+            <div id="tooltip-body">Coords</div>
+        </div>
+    </div>
+
+    <!-- Data Injection Block -->
+    <script>
+        // ── Fetch-based loading ── these start empty and are filled from data/dates/<date>.json.
+        // (A month of embedded days would exceed GitHub's 100 MB/file limit, so each day is fetched.)
+        let historicalSimulationArchive = {};
+        let depositionArchive = {};
+        let activeDate = null, PLUME_DATA = null, regionalMonitorData = null;
+        const VET_CLINICS = [{"name":"Ceglinski Animal Clinic","address":"5401 Blandville Rd, Paducah, KY 42001","lat":37.05089,"lon":-88.67557},{"name":"Calvert City Animal Hospital","address":"4267 US-62, Calvert City, KY 42029","lat":37.00378,"lon":-88.34534},{"name":"Lone Oak Animal Clinic","address":"125 Augusta Ave, Paducah, KY 42003","lat":37.03694,"lon":-88.66204},{"name":"Heartland Veterinary Hospital","address":"3137 Olivet Church Rd, Paducah, KY 42001","lat":37.07749,"lon":-88.69746},{"name":"Lakeland Animal Hospital","address":"2044 US-641, Benton, KY 42025","lat":36.84647,"lon":-88.34991},{"name":"Companion Animal Hospital","address":"1831 US-641, Benton, KY 42025","lat":36.84823,"lon":-88.34994},{"name":"Animal Kare Center","address":"2625 Olivet Church Rd, Paducah, KY 42001","lat":37.06824,"lon":-88.70188},{"name":"Progressive Animal Healthcare","address":"2630 James Sanders Blvd, Paducah, KY 42001","lat":37.08079,"lon":-88.68488},{"name":"Cummings Veterinary Clinic","address":"3800 Clarks River Rd, Paducah, KY 42003","lat":37.04681,"lon":-88.55789},{"name":"Flanary Veterinary Clinic","address":"200 Eagle Nest Dr, Paducah, KY 42003","lat":37.00849,"lon":-88.50918},{"name":"Lyon County Animal Hospital","address":"638 Trade Ave, Eddyville, KY 42038","lat":37.08869,"lon":-88.08644},{"name":"Paducah Veterinary Clinic","address":"3205 Central Ave, Paducah, KY 42001","lat":37.07613,"lon":-88.64278},{"name":"Animal Wellness Center","address":"120 Cave Thomas Dr, Paducah, KY 42001","lat":37.0313,"lon":-88.6708},{"name":"Veterinary Institute of Paducah","address":"3526 Park Plaza Rd, Paducah, KY 42001","lat":37.08201,"lon":-88.66502},{"name":"Equine Vet Services","address":"4025 Coleman Cut Rd, Paducah, KY 42001","lat":36.96969,"lon":-88.76676}];
+        const PLUME_MANIFEST = {"generated_at":"2026-07-05T00:53:23Z","newest":"2025-03-08","dates":[{"date":"2024-01-08","label":"Storm \u2014 winds from the east (plume over Paducah)","pinned":true},{"date":"2025-02-15","label":"Heavy rain \u2014 strong deposition","pinned":true},{"date":"2025-03-08","label":"Southeast winds (toward Benton)","pinned":true}]};   // { generated_at, dates:[{date,label}] }
+
+        // Friendly fatal-error card (opened via file://, or a pruned/missing date).
+        function pd_showFatal(msg) {
+            let el = document.getElementById('pd-fatal');
+            if (!el) {
+                el = document.createElement('div'); el.id = 'pd-fatal';
+                el.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:#0b0d12;color:#e5e7eb;font-family:Inter,system-ui,sans-serif;padding:24px;text-align:center';
+                (document.body || document.documentElement).appendChild(el);
+            }
+            el.innerHTML = '<div style="max-width:520px"><div style="font-size:38px;margin-bottom:10px">&#128062;</div>'
+                + '<div style="font-size:17px;font-weight:600;margin-bottom:8px">Calvert City Plume Analysis</div>'
+                + '<div style="font-size:13px;line-height:1.6;color:#9ca3af">' + msg + '</div></div>';
+        }
+        // Fetch one day's bundle into the archives (cached after first load).
+        async function pd_fetchDate(dateStr) {
+            if (historicalSimulationArchive[dateStr]) return;
+            const resp = await fetch('data/dates/' + dateStr + '.json', { cache: 'default' });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const b = await resp.json();
+            historicalSimulationArchive[dateStr] = { plumes: b.plumes, monitors: b.monitors };
+            depositionArchive[dateStr] = b.dep;
+        }
+        // Boot: pick date (?date= or newest), fetch it, then load the app (app.js).
+        (async function pd_boot() {
+            const all = (PLUME_MANIFEST.dates || []).map(function (d) { return d.date; });
+            const params = new URLSearchParams(location.search);
+            let target = params.get('date');
+            if (all.indexOf(target) < 0) target = all.length ? all[all.length - 1] : null;
+            if (!target) { pd_showFatal('No simulation days are available yet. Check back after the next nightly update.'); return; }
+            try { await pd_fetchDate(target); }
+            catch (e) {
+                pd_showFatal(location.protocol === 'file:'
+                    ? 'This page loads its data over the network, which browsers block for files opened directly. Use the included <b>View&nbsp;Locally</b> script to preview it.'
+                    : 'Could not load data for ' + target + ' (' + e.message + '). Please refresh.');
+                return;
+            }
+            window.__ACTIVE_DATE = target;
+            const s = document.createElement('script'); s.src = 'app.js';
+            document.body.appendChild(s);
+        })();
+    </script>
+
+    
+</body>
+</html>
