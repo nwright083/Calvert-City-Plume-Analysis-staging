@@ -1751,14 +1751,23 @@ class CalvertCityPlumeEngine:
                     continue
                     
                 try:
-                    # Extract hour from time column (format: "M/DD/YY HH:MM" or "M/ D/YY  H: M")
+                    # Extract hour from time column. par2asc's whitespace/zero-padding differs by
+                    # Fortran compiler: macOS emits "M/ D/YY  H: M" (space before minutes) while the
+                    # Linux/CI build emits compact "M/DD/YY HH:MM". Take the hour as the token BEFORE
+                    # the first colon so both parse correctly. (The old `replace(":","")` turned
+                    # "14:00" into 1400 → rejected by the 0..24 filter → empty wind grid on CI.)
                     time_str = cols[time_idx].strip()
                     time_parts = time_str.split()
                     hour = 1  # default
                     for part in time_parts:
                         if ":" in part:
-                            hour = int(part.replace(":", ""))
+                            hour = int(part.split(":")[0].strip())
                             break
+                    if not getattr(self, "_time_fmt_logged", False):
+                        # One-line confirmation of par2asc's actual time format + parsed hour, so a
+                        # future empty-wind-grid regression is immediately visible in the log.
+                        print(f"  [particle parse] time sample {time_str!r} -> hour {hour}")
+                        self._time_fmt_logged = True
                     
                     lat = float(cols[lat_idx])
                     lon = float(cols[lon_idx])
