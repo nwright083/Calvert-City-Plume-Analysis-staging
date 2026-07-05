@@ -26,7 +26,7 @@ LOCAL_TRI_CSV_PATH = _local_tri if os.path.exists(_local_tri) else os.path.join(
 DEFAULT_ACTIVE_CHEMICALS = [
     "VINYL CHLORIDE", "1,2-DICHLOROETHANE", "BENZENE", "1,3-BUTADIENE",
     "XYLENE (MIXED ISOMERS)", "TETRACHLOROETHYLENE", "1,2,4-TRICHLOROBENZENE",
-    "CHLORINE", "AMMONIA"
+    "CHLORINE", "AMMONIA", "NAPHTHALENE"
 ]
 
 # Embed per-facility deposition footprints in index.html? They are ~55% of the deposition data and are
@@ -310,6 +310,7 @@ DEP_CHEMICAL_TAGS = {
     "1,2,4-TRICHLOROBENZENE":   "TCB",
     "CHLORINE":                 "CL2",
     "AMMONIA":                  "NH3",
+    "NAPHTHALENE":              "NAPH",
 }
 
 DEP_CHEMICAL_SLUGS = {
@@ -322,6 +323,7 @@ DEP_CHEMICAL_SLUGS = {
     "1,2,4-TRICHLOROBENZENE":   "124trichlorobenzene",
     "CHLORINE":                 "chlorine",
     "AMMONIA":                  "ammonia",
+    "NAPHTHALENE":              "naphthalene",
 }
 
 CHEMICAL_DEPOSITION = {
@@ -369,6 +371,12 @@ CHEMICAL_DEPOSITION = {
         "mol_weight": 17.0, "dry_vd_ms": 0.016, "henry_M_atm": 60.0,
         "in_cloud_ratio": 2.0e5, "below_cloud_s": 5.0e-4, "halflife_days": 30.0,
         "depositor_class": "strong",
+    },
+    "NAPHTHALENE": {
+        # Semivolatile PAH: short atmospheric lifetime (fast OH reaction), modest dry deposition.
+        "mol_weight": 128.2, "dry_vd_ms": 0.004, "henry_M_atm": 0.02,
+        "in_cloud_ratio": 0.0, "below_cloud_s": 0.0, "halflife_days": 0.7,
+        "depositor_class": "low-moderate",
     },
 }
 # ==============================================================================
@@ -4316,6 +4324,11 @@ class CalvertCityPlumeEngine:
             }}
         }}
 
+        // If the nearest available sample is more than this many days from the shown date, the
+        // monitor is drawn grayed-out (not colored by AQI) so it never looks like current measured
+        // data. Recent days legitimately have no published AQS/VOC data yet (months of lag).
+        const STALE_MONITOR_DAYS = 14;
+
         function updateMonitorPopups(currentHourInt) {{
             const selected = document.getElementById('pollutant-select').value;
             monitorMarkers.forEach(m => {{
@@ -4338,10 +4351,21 @@ class CalvertCityPlumeEngine:
 
                 const val = station.hourly_data[currentHourInt];
                 const {{ color, status }} = getMonitorColorAndStatus(val, thresholds);
-                
-                m.marker.setStyle({{
-                    fillColor: color
-                }});
+                const isStale = station.is_interpolated && station.days_diff > STALE_MONITOR_DAYS;
+
+                if (isStale) {{
+                    // Data is a far-off nearest sample (e.g. recent dates before AQS/VOC publishes):
+                    // gray + dim + dashed so it reads as "location only, not current data".
+                    m.marker.setStyle({{
+                        fillColor: '#6b7280', color: '#9ca3af', fillOpacity: 0.3,
+                        opacity: 0.55, weight: 1, dashArray: '2,3'
+                    }});
+                }} else {{
+                    m.marker.setStyle({{
+                        fillColor: color, color: '#ffffff', fillOpacity: 0.8,
+                        opacity: 0.9, weight: 2, dashArray: null
+                    }});
+                }}
 
                 const valStr = (val !== null && val !== undefined) ? (val.toFixed(2) + ' ' + m.unit) : 'No Data';
 
@@ -4454,15 +4478,33 @@ class CalvertCityPlumeEngine:
         
         // Helper formatting functions
         function formatSimulationTime(decHours) {{
+            // The simulation runs on UTC hours. Display them in Calvert City's LOCAL time
+            // (America/Chicago = Central, DST-aware: CDT in summer, CST in winter) so residents
+            // read the plume's timing in their own clock, not UTC.
             const totalMinutes = Math.floor(decHours * 60);
-            const hours24 = Math.floor(totalMinutes / 60);
-            const minutes = totalMinutes % 60;
-            
-            const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
-            const ampm = hours24 >= 12 ? 'PM' : 'AM';
-            
-            const timeStr = `${{String(hours12).padStart(2, '0')}}:${{String(minutes).padStart(2, '0')}}`;
-            return {{ time: timeStr, ampm: ampm }};
+            const h = Math.floor(totalMinutes / 60);
+            const m = totalMinutes % 60;
+            const base = (typeof activeDate === 'string' && activeDate) ? activeDate : '2000-01-01';
+            const dt = new Date(base + 'T00:00:00Z');
+            dt.setUTCHours(h, m, 0, 0);
+            try {{
+                const parts = new Intl.DateTimeFormat('en-US', {{
+                    timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit',
+                    hour12: true, timeZoneName: 'short'
+                }}).formatToParts(dt);
+                let hh = '', mm = '', ap = '', tz = 'CT';
+                for (const p of parts) {{
+                    if (p.type === 'hour') hh = p.value;
+                    else if (p.type === 'minute') mm = p.value;
+                    else if (p.type === 'dayPeriod') ap = p.value.toUpperCase();
+                    else if (p.type === 'timeZoneName') tz = p.value;
+                }}
+                return {{ time: String(hh).padStart(2, '0') + ':' + mm, ampm: ap + ' ' + tz }};
+            }} catch (e) {{
+                const hours12 = h % 12 === 0 ? 12 : h % 12;
+                const ampm = h >= 12 ? 'PM' : 'AM';
+                return {{ time: String(hours12).padStart(2, '0') + ':' + String(m).padStart(2, '0'), ampm: ampm + ' UTC' }};
+            }}
         }}
         
         function hexToRgbA(hex, opacity) {{
@@ -5717,7 +5759,7 @@ class CalvertCityPlumeEngine:
                     Chemical: <strong>` + hit.chem + `</strong><br/>
                     Type: <strong>` + hit.type.toUpperCase() + `</strong><br/>
                     Lat/Lon: <strong>` + hit.lat.toFixed(4) + `, ` + hit.lon.toFixed(4) + `</strong><br/>
-                    Height: <strong>` + hit.ht.toFixed(0) + ` m AGL</strong><br/>
+                    Release height: <strong>` + hit.ht.toFixed(0) + ` m AGL</strong><br/>
                     Age: <strong>` + ageMin + ` min</strong>
                 `;
                 tooltip.style.left = (mp.x + 15) + "px";
