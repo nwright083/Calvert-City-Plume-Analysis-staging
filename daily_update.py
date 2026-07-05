@@ -63,7 +63,7 @@ def main() -> int:
 
     today = datetime.datetime.utcnow().date()
     if a.date:
-        targets = [a.date]
+        targets = [d.strip() for d in a.date.split(",") if d.strip()]
     else:
         # Oldest-first so a partially-filled window backfills from the far edge inward.
         targets = [(today - datetime.timedelta(days=off)).isoformat() for off in range(a.days_back, 0, -1)]
@@ -75,8 +75,11 @@ def main() -> int:
         print(f"All target dates already have bundles: {targets}. Rebuilding site only.")
         return 0 if run_engine(["--build-site"], build_log) == 0 else 2
 
-    todo = todo[: a.max_runs]
-    print(f"Dates to simulate this run (max {a.max_runs}): {todo}")
+    # A forced run (e.g. refreshing all pinned days) runs every listed date; the runner-time cap
+    # only guards the automatic nightly backfill.
+    if not a.force:
+        todo = todo[: a.max_runs]
+    print(f"Dates to simulate this run: {todo}")
 
     weather_flags = [] if a.no_stream else ["--stream-weather"]
     failures = []

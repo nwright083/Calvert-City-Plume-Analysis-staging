@@ -49,7 +49,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 330        # HYSPLIT deposition matrix is slow; generous budget
+    timeout-minutes: 350        # HYSPLIT deposition matrix is slow; headroom for a forced multi-day re-run
     steps:
       - name: Free up runner disk
         run: |
@@ -119,7 +119,15 @@ jobs:
           if [ -n "${{ github.event.inputs.date }}" ]; then DATE_ARG="--date ${{ github.event.inputs.date }}"; fi
           FORCE_ARG=""
           if [ "${{ github.event.inputs.force }}" = "true" ]; then FORCE_ARG="--force"; fi
+          set +e
           python3 daily_update.py --days-back "${{ github.event.inputs.days_back || '1' }}" $DATE_ARG $FORCE_ARG
+          rc=$?
+          set -e
+          echo "daily_update exit code: $rc"
+          # 0 = all good; 1 = some date(s) failed but the site still rebuilt (commit the good ones);
+          # 2 = build-site itself failed (fatal). Only 2 aborts the commit + deploy.
+          if [ "$rc" = "2" ]; then echo "::error::build-site failed"; exit 1; fi
+          if [ "$rc" = "1" ]; then echo "::warning::some date(s) failed; deploying the dates that succeeded"; fi
           echo "---- disk after run ----" && df -h /
 
       - name: Commit updated site back to the branch (rolling-window persistence)
