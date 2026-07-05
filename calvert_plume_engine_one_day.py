@@ -2472,7 +2472,18 @@ class CalvertCityPlumeEngine:
         
         print("Compiling surface fugitive wind grid...")
         wind_grid_fugitive = build_wind_grid_for_filter(lambda h: h < 15.0, "Fugitive")
-        
+
+        # Defense-in-depth: this grid was silently empty on CI once (par2asc time-format parse bug).
+        # Fail LOUD if it ever happens again instead of shipping a dead particle animation.
+        _nz = sum(1 for wg in (wind_grid_stack, wind_grid_fugitive)
+                  for h in wg for row in h for c in row
+                  if abs(c["dLat"]) > 1e-9 or abs(c["dLon"]) > 1e-9)
+        if _nz == 0:
+            print("  ⚠️  WARNING: wind grid is EMPTY (0 populated cells) — particle animation will be "
+                  "dead. Likely no PARDUMP particles parsed (check the [particle parse] line + par2asc).")
+        else:
+            print(f"  Wind grid OK: {_nz} nonzero cells across stack+fugitive.")
+
         grid_info = {
             "grid_size": GRID_SIZE,
             "lat_min": round(lat_min, 6),
