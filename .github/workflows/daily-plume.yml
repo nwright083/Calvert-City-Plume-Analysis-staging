@@ -84,11 +84,30 @@ jobs:
           # smoke-test the static binary actually runs on this runner
           ./hysplit/exec/hycs_std -h 2>&1 | head -3 || echo "(hycs_std ran; non-zero exit is fine without CONTROL)"
 
+      - name: Cache eccodes 2.17.0 definitions
+        id: cache-ecc
+        uses: actions/cache@v4
+        with:
+          path: eccodes-defs
+          key: eccodes-defs-2.17.0
+
+      - name: Fetch eccodes 2.17.0 definitions (MUST match HYSPLIT's embedded eccodes)
+        if: steps.cache-ecc.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          # api2arl_v6 embeds eccodes 2.17.0; the apt/system eccodes is a newer version whose
+          # definition files segfault it. Pin the matching 2.17.0 definitions from ECMWF source.
+          curl -fL --retry 3 -o ecc.tar.gz "https://github.com/ecmwf/eccodes/archive/refs/tags/2.17.0.tar.gz"
+          mkdir -p eccodes-defs
+          tar xzf ecc.tar.gz --strip-components=1 -C eccodes-defs eccodes-2.17.0/definitions
+          rm -f ecc.tar.gz
+          test -f eccodes-defs/definitions/boot.def && echo "eccodes 2.17.0 definitions ready."
+
       - name: Run nightly update
         env:
           HYSPLIT_ROOT: ${{ github.workspace }}/hysplit
           PLUME_WEATHER_CACHE: ${{ github.workspace }}/weather_cache
-          ECCODES_DEFINITION_PATH: /usr/share/eccodes/definitions
+          ECCODES_DEFINITION_PATH: ${{ github.workspace }}/eccodes-defs/definitions
         run: |
           DATE_ARG=""
           if [ -n "${{ github.event.inputs.date }}" ]; then DATE_ARG="--date ${{ github.event.inputs.date }}"; fi
