@@ -35,18 +35,21 @@ def bundle_exists(date_str: str) -> bool:
 def run_engine(engine_args, log_path: str) -> int:
     """Run the engine with engine_args, teeing output to both the console and a per-date log file."""
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    stamp = datetime.datetime.utcnow().isoformat() + "Z"
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     header = f"\n\n===== {stamp} :: engine {' '.join(engine_args)} =====\n"
-    print(header.strip())
+    print(header.strip(), flush=True)
     with open(log_path, "a", encoding="utf-8") as log:
         log.write(header)
         log.flush()
+        # -u: force the child engine's stdout unbuffered so its progress streams live into the CI
+        # log (block-buffered pipes otherwise hide ~1.5 h of output until the process exits).
         proc = subprocess.Popen(
-            [sys.executable, ENGINE] + engine_args, cwd=WORKSPACE,
+            [sys.executable, "-u", ENGINE] + engine_args, cwd=WORKSPACE,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
         )
         for line in proc.stdout:
             sys.stdout.write(line)
+            sys.stdout.flush()   # stream live to the CI log instead of buffering
             log.write(line)
         proc.wait()
     return proc.returncode
@@ -61,7 +64,7 @@ def main() -> int:
     ap.add_argument("--force", action="store_true", help="Re-simulate target date(s) even if a bundle already exists (e.g. to refresh pinned days after a model change).")
     a = ap.parse_args()
 
-    today = datetime.datetime.utcnow().date()
+    today = datetime.datetime.now(datetime.timezone.utc).date()
     if a.date:
         targets = [d.strip() for d in a.date.split(",") if d.strip()]
     else:

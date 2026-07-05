@@ -114,6 +114,7 @@ jobs:
           HYSPLIT_ROOT: ${{ github.workspace }}/hysplit
           PLUME_WEATHER_CACHE: ${{ github.workspace }}/weather_cache
           ECCODES_DEFINITION_PATH: ${{ github.workspace }}/eccodes-defs/definitions
+          PYTHONUNBUFFERED: "1"   # stream Python stdout live into the Actions log (no block-buffering)
         run: |
           DATE_ARG=""
           if [ -n "${{ github.event.inputs.date }}" ]; then DATE_ARG="--date ${{ github.event.inputs.date }}"; fi
