@@ -1147,8 +1147,13 @@ class CalvertCityPlumeEngine:
             "  poutf = 'PARDUMP',\n"                    # Particle dump output file name
             "/\n"
         )
-        with open(setup_path, "w") as f:
-            f.write(content)
+        # HYSPLIT reads the namelist as SETUP.CFG (uppercase). macOS's case-INsensitive filesystem
+        # matches our lowercase name, but case-SENSITIVE Linux/CI does not — so hycs_std silently
+        # falls back to defaults (ndump=0 → NO PARDUMP → empty particle animation, the CI wind-grid
+        # bug). Write BOTH casings so the dump config is honored on every platform.
+        for _name in ("SETUP.cfg", "SETUP.CFG"):
+            with open(os.path.join(run_dir, _name), "w") as f:
+                f.write(content)
         print(f"SETUP.cfg written to: {setup_path} (numpar={numpar_value}, maxpar={maxpar_value}, species={num_species})")
 
     # ==========================================================================
@@ -1215,8 +1220,10 @@ class CalvertCityPlumeEngine:
             "  maxpar = 50000,\n"
             "/\n"
         )
-        with open(os.path.join(run_dir, "SETUP.cfg"), "w") as f:
-            f.write(content)
+        # Both casings so case-sensitive Linux hycs_std reads it too (see write_setup_file note).
+        for _name in ("SETUP.cfg", "SETUP.CFG"):
+            with open(os.path.join(run_dir, _name), "w") as f:
+                f.write(content)
 
     def _hysplit_dep_run(self, run_dir: str) -> bool:
         """Execute hycs_std in run_dir; return True if cdump is non-empty."""
