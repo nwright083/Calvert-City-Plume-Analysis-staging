@@ -16,7 +16,9 @@ name: Nightly plume update
 
 on:
   schedule:
-    - cron: "30 7 * * *"       # 07:30 UTC ≈ 02:30 America/Chicago
+    - cron: "0 5 * * *"        # 05:00 UTC ≈ 12 AM EST / 1 AM EDT (dead of night ET).
+                               # At this hour "yesterday UTC" == the ET user's yesterday, and its HRRR
+                               # is fully published (last analysis hour lands ~5 h earlier).
   workflow_dispatch:
     inputs:
       date:
