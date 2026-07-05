@@ -1640,6 +1640,21 @@ class CalvertCityPlumeEngine:
                 pardump_path = candidates[0]
             else:
                 print(f"Warning: No PARDUMP files found in {run_dir}.")
+                # DIAGNOSTIC: Linux/CI hycs_std reports success but leaves no findable PARDUMP.
+                # Dump exactly what files it DID write (repr shows trailing-space/odd names) and what
+                # HYSPLIT logged about the dump — distinguishes "wrong filename" from "never written".
+                try:
+                    entries = sorted(os.listdir(run_dir))
+                    listing = [f"{n!r}({os.path.getsize(os.path.join(run_dir, n))}b)" for n in entries]
+                    print(f"  [pardump-diag] run_dir has {len(entries)} files: {listing}")
+                    msg = os.path.join(run_dir, "MESSAGE")
+                    if os.path.exists(msg):
+                        with open(msg, errors="replace") as mf:
+                            hits = [l.rstrip() for l in mf if any(
+                                k in l.upper() for k in ("NDUMP", "NCYCL", "POUTF", "PARDUMP", "DUMP", "ERROR"))]
+                        print(f"  [pardump-diag] MESSAGE dump/err lines: {hits[:12]}")
+                except Exception as _e:
+                    print(f"  [pardump-diag] inspect failed: {_e}")
                 return {}
         
         # Clear pre-existing outputs from past executions
