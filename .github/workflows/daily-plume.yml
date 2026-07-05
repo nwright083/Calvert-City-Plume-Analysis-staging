@@ -28,6 +28,10 @@ on:
         description: "Ensure the last N days exist"
         required: false
         default: "1"
+      force:
+        description: "Re-simulate even if the bundle already exists (refresh pinned days)"
+        required: false
+        default: "false"
 
 permissions:
   contents: write               # commit the updated site/ back to the branch
@@ -113,7 +117,9 @@ jobs:
         run: |
           DATE_ARG=""
           if [ -n "${{ github.event.inputs.date }}" ]; then DATE_ARG="--date ${{ github.event.inputs.date }}"; fi
-          python3 daily_update.py --days-back "${{ github.event.inputs.days_back || '1' }}" $DATE_ARG
+          FORCE_ARG=""
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then FORCE_ARG="--force"; fi
+          python3 daily_update.py --days-back "${{ github.event.inputs.days_back || '1' }}" $DATE_ARG $FORCE_ARG
           echo "---- disk after run ----" && df -h /
 
       - name: Commit updated site back to the branch (rolling-window persistence)

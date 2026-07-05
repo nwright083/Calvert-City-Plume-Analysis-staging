@@ -58,6 +58,7 @@ def main() -> int:
     ap.add_argument("--days-back", type=int, default=1, help="Ensure the last N days exist (default 1).")
     ap.add_argument("--max-runs", type=int, default=2, help="Max simulations per invocation (default 2).")
     ap.add_argument("--no-stream", action="store_true", help="Keep the GRIB cache (skip --stream-weather).")
+    ap.add_argument("--force", action="store_true", help="Re-simulate target date(s) even if a bundle already exists (e.g. to refresh pinned days after a model change).")
     a = ap.parse_args()
 
     today = datetime.datetime.utcnow().date()
@@ -67,7 +68,7 @@ def main() -> int:
         # Oldest-first so a partially-filled window backfills from the far edge inward.
         targets = [(today - datetime.timedelta(days=off)).isoformat() for off in range(a.days_back, 0, -1)]
 
-    todo = [d for d in targets if not bundle_exists(d)]
+    todo = targets if a.force else [d for d in targets if not bundle_exists(d)]
     build_log = os.path.join(LOG_DIR, "build-site.log")
 
     if not todo:

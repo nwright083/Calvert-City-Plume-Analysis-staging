@@ -26,7 +26,8 @@ LOCAL_TRI_CSV_PATH = _local_tri if os.path.exists(_local_tri) else os.path.join(
 DEFAULT_ACTIVE_CHEMICALS = [
     "VINYL CHLORIDE", "1,2-DICHLOROETHANE", "BENZENE", "1,3-BUTADIENE",
     "XYLENE (MIXED ISOMERS)", "TETRACHLOROETHYLENE", "1,2,4-TRICHLOROBENZENE",
-    "CHLORINE", "AMMONIA", "NAPHTHALENE"
+    "CHLORINE", "AMMONIA", "NAPHTHALENE",
+    "ETHYLENE OXIDE", "DICHLOROMETHANE", "CARBON TETRACHLORIDE"
 ]
 
 # Embed per-facility deposition footprints in index.html? They are ~55% of the deposition data and are
@@ -134,6 +135,7 @@ CHEMICAL_PROPERTIES = {
     "NAPHTHALENE":          {"mol_wt": 128.2, "vd": 0.004, "reactivity": 0.0,  "henry_const": 0.022},
     "ACRYLIC ACID":         {"mol_wt": 72.1,  "vd": 0.008, "reactivity": 0.0,  "henry_const": 3400.0},
     "FORMIC ACID":          {"mol_wt": 46.0,  "vd": 0.008, "reactivity": 0.0,  "henry_const": 8900.0},
+    "CARBON TETRACHLORIDE": {"mol_wt": 153.8, "vd": 0.002, "reactivity": 0.0,  "henry_const": 0.034},
     # ── Fallback entry for any chemical not explicitly listed ──
     "_DEFAULT":             {"mol_wt": 80.0,  "vd": 0.003, "reactivity": 0.0,  "henry_const": 1.0},
 }
@@ -311,6 +313,9 @@ DEP_CHEMICAL_TAGS = {
     "CHLORINE":                 "CL2",
     "AMMONIA":                  "NH3",
     "NAPHTHALENE":              "NAPH",
+    "ETHYLENE OXIDE":           "ETOX",
+    "DICHLOROMETHANE":          "DCM",
+    "CARBON TETRACHLORIDE":     "CTET",
 }
 
 DEP_CHEMICAL_SLUGS = {
@@ -324,6 +329,9 @@ DEP_CHEMICAL_SLUGS = {
     "CHLORINE":                 "chlorine",
     "AMMONIA":                  "ammonia",
     "NAPHTHALENE":              "naphthalene",
+    "ETHYLENE OXIDE":           "ethylene_oxide",
+    "DICHLOROMETHANE":          "dichloromethane",
+    "CARBON TETRACHLORIDE":     "carbon_tetrachloride",
 }
 
 CHEMICAL_DEPOSITION = {
@@ -377,6 +385,24 @@ CHEMICAL_DEPOSITION = {
         "mol_weight": 128.2, "dry_vd_ms": 0.004, "henry_M_atm": 0.02,
         "in_cloud_ratio": 0.0, "below_cloud_s": 0.0, "halflife_days": 0.7,
         "depositor_class": "low-moderate",
+    },
+    "ETHYLENE OXIDE": {
+        # Volatile, water-soluble gas; low dry deposition, long chemical lifetime (~120 d vs OH).
+        "mol_weight": 44.05, "dry_vd_ms": 0.005, "henry_M_atm": 8.4,
+        "in_cloud_ratio": 0.0, "below_cloud_s": 0.0, "halflife_days": 120.0,
+        "depositor_class": "negligible",
+    },
+    "DICHLOROMETHANE": {
+        # Volatile chlorinated solvent; negligible deposition, atmospheric lifetime ~4-5 months.
+        "mol_weight": 84.93, "dry_vd_ms": 0.003, "henry_M_atm": 0.13,
+        "in_cloud_ratio": 0.0, "below_cloud_s": 0.0, "halflife_days": 140.0,
+        "depositor_class": "negligible",
+    },
+    "CARBON TETRACHLORIDE": {
+        # Extremely persistent, unreactive, volatile; negligible deposition (multi-year lifetime).
+        "mol_weight": 153.82, "dry_vd_ms": 0.002, "henry_M_atm": 0.034,
+        "in_cloud_ratio": 0.0, "below_cloud_s": 0.0, "halflife_days": 10000.0,
+        "depositor_class": "negligible",
     },
 }
 # ==============================================================================
