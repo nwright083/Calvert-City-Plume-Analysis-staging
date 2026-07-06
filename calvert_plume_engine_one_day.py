@@ -30,6 +30,25 @@ DEFAULT_ACTIVE_CHEMICALS = [
     "ETHYLENE OXIDE", "DICHLOROMETHANE", "CARBON TETRACHLORIDE"
 ]
 
+# Friendly labels for the chemical-filter checkboxes. Injected into the page and derived from
+# DEFAULT_ACTIVE_CHEMICALS at render time, so the filter list can NEVER drift from the modeled set
+# again (adding a chemical above auto-adds its checkbox). Unlisted names fall back to title-case.
+CHEMICAL_DISPLAY_NAMES = {
+    "VINYL CHLORIDE": "Vinyl Chloride",
+    "1,2-DICHLOROETHANE": "Ethylene Dichloride",
+    "BENZENE": "Benzene",
+    "1,3-BUTADIENE": "1,3-Butadiene",
+    "XYLENE (MIXED ISOMERS)": "Xylenes",
+    "TETRACHLOROETHYLENE": "Tetrachloroethylene",
+    "1,2,4-TRICHLOROBENZENE": "1,2,4-TCB",
+    "CHLORINE": "Chlorine",
+    "AMMONIA": "Ammonia",
+    "NAPHTHALENE": "Naphthalene",
+    "ETHYLENE OXIDE": "Ethylene Oxide",
+    "DICHLOROMETHANE": "Dichloromethane",
+    "CARBON TETRACHLORIDE": "Carbon Tet",
+}
+
 # Embed per-facility deposition footprints in index.html? They are ~55% of the deposition data and are
 # used only for particle gating (which falls back to the combined footprints) and the per-facility %
 # breakdown in the deposition hover readout. False → much smaller file, losing only that hover-%.
@@ -2738,6 +2757,11 @@ class CalvertCityPlumeEngine:
 
         # Landmark locations (veterinary clinics) embedded inline (tiny).
         vet_clinics_json = json.dumps(VET_CLINICS, separators=(',', ':'))
+        # Chemical-filter checkbox list, derived from the modeled set so it can't drift.
+        dep_chem_names_json = json.dumps(DEFAULT_ACTIVE_CHEMICALS, separators=(',', ':'))
+        dep_chem_labels_json = json.dumps(
+            {c: CHEMICAL_DISPLAY_NAMES.get(c, c.title()) for c in DEFAULT_ACTIVE_CHEMICALS},
+            separators=(',', ':'))
 
         html_content = f"""<!DOCTYPE html>
 <html lang="en">
@@ -3814,17 +3838,10 @@ class CalvertCityPlumeEngine:
         const depositionLayer    = L.layerGroup().addTo(map);
         const airConcentrationLayer = L.layerGroup().addTo(map);
 
-        const DEP_CHEM_NAMES = [
-            "VINYL CHLORIDE","1,2-DICHLOROETHANE","BENZENE","1,3-BUTADIENE",
-            "XYLENE (MIXED ISOMERS)","TETRACHLOROETHYLENE","1,2,4-TRICHLOROBENZENE",
-            "CHLORINE","AMMONIA"
-        ];
-        const DEP_CHEM_LABELS = {{
-            "VINYL CHLORIDE":"Vinyl Chloride","1,2-DICHLOROETHANE":"Ethylene Dichloride",
-            "BENZENE":"Benzene","1,3-BUTADIENE":"1,3-Butadiene",
-            "XYLENE (MIXED ISOMERS)":"Xylenes","TETRACHLOROETHYLENE":"Tetrachloroethylene",
-            "1,2,4-TRICHLOROBENZENE":"1,2,4-TCB","CHLORINE":"Chlorine","AMMONIA":"Ammonia"
-        }};
+        // Derived from the engine's DEFAULT_ACTIVE_CHEMICALS so the filter list always matches the
+        // modeled set (adding a chemical there auto-adds its checkbox — no JS edit needed).
+        const DEP_CHEM_NAMES = {dep_chem_names_json};
+        const DEP_CHEM_LABELS = {dep_chem_labels_json};
         // band 1 = HIGHEST concentration (smallest, near source) → band N = lowest (largest, outer).
         // Ramps go intense → faint so the core reads strong and the edge fades. Saturated for the
         // light Voyager basemap.
