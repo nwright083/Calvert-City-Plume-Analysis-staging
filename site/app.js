@@ -84,17 +84,10 @@
         const depositionLayer    = L.layerGroup().addTo(map);
         const airConcentrationLayer = L.layerGroup().addTo(map);
 
-        const DEP_CHEM_NAMES = [
-            "VINYL CHLORIDE","1,2-DICHLOROETHANE","BENZENE","1,3-BUTADIENE",
-            "XYLENE (MIXED ISOMERS)","TETRACHLOROETHYLENE","1,2,4-TRICHLOROBENZENE",
-            "CHLORINE","AMMONIA"
-        ];
-        const DEP_CHEM_LABELS = {
-            "VINYL CHLORIDE":"Vinyl Chloride","1,2-DICHLOROETHANE":"Ethylene Dichloride",
-            "BENZENE":"Benzene","1,3-BUTADIENE":"1,3-Butadiene",
-            "XYLENE (MIXED ISOMERS)":"Xylenes","TETRACHLOROETHYLENE":"Tetrachloroethylene",
-            "1,2,4-TRICHLOROBENZENE":"1,2,4-TCB","CHLORINE":"Chlorine","AMMONIA":"Ammonia"
-        };
+        // Derived from the engine's DEFAULT_ACTIVE_CHEMICALS so the filter list always matches the
+        // modeled set (adding a chemical there auto-adds its checkbox — no JS edit needed).
+        const DEP_CHEM_NAMES = ["VINYL CHLORIDE","1,2-DICHLOROETHANE","BENZENE","1,3-BUTADIENE","XYLENE (MIXED ISOMERS)","TETRACHLOROETHYLENE","1,2,4-TRICHLOROBENZENE","CHLORINE","AMMONIA","NAPHTHALENE","ETHYLENE OXIDE","DICHLOROMETHANE","CARBON TETRACHLORIDE"];
+        const DEP_CHEM_LABELS = {"VINYL CHLORIDE":"Vinyl Chloride","1,2-DICHLOROETHANE":"Ethylene Dichloride","BENZENE":"Benzene","1,3-BUTADIENE":"1,3-Butadiene","XYLENE (MIXED ISOMERS)":"Xylenes","TETRACHLOROETHYLENE":"Tetrachloroethylene","1,2,4-TRICHLOROBENZENE":"1,2,4-TCB","CHLORINE":"Chlorine","AMMONIA":"Ammonia","NAPHTHALENE":"Naphthalene","ETHYLENE OXIDE":"Ethylene Oxide","DICHLOROMETHANE":"Dichloromethane","CARBON TETRACHLORIDE":"Carbon Tet"};
         // band 1 = HIGHEST concentration (smallest, near source) → band N = lowest (largest, outer).
         // Ramps go intense → faint so the core reads strong and the edge fades. Saturated for the
         // light Voyager basemap.
@@ -1291,12 +1284,14 @@
         const MAX_ACTIVE = 8000;                // Global particle cap (raised for plume fill)
         const SPAWN_INTERVAL = 1.0 / 30.0;     // Spawn every 2 sim-minutes
         const BASE_SPAWN_COUNT = 12;            // Particles per spawn for biggest emitter (raised for plume fill)
-        const TURB_BASE = 0.0035;               // Base turbulent diffusion (deg/hr)
-        const TURB_GROWTH = 0.0040;             // Extra diffusion per hour of age — lets the population
-                                                // fan out to FILL the HYSPLIT footprint (the footprint
-                                                // edge is HYSPLIT's dispersive leading tail, not median wind)
-        const TURB_MAX = 0.050;                 // Cap raised ~4x: aged particles disperse to the footprint
-                                                // edge (~1deg over a day); gating clips them to plume shape
+        const TURB_BASE = 0.0025;               // Base turbulent diffusion (deg/hr)
+        const TURB_GROWTH = 0.0026;             // Extra diffusion per hour of age. Kept modest so WIND
+                                                // advection clearly leads and the plume reads as directional
+                                                // rather than radiating in all directions (turbulent spread
+                                                // is real, but was previously tuned high to fill the footprint).
+        const TURB_MAX = 0.025;                 // Cap ~halved: aged particles still spread but stay a minority
+                                                // of the wind magnitude. The deposition footprint LAYER (a
+                                                // separate HYSPLIT product) still shows the full plume extent.
         const MAX_WIND_PER_HR = 0.18;           // Raised from 0.10 to allow real HYSPLIT transport distances
         
         // Find max emissions for proportional spawning
