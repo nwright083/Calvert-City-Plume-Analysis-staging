@@ -140,7 +140,21 @@ jobs:
             echo "No site changes to commit."
           else
             git commit -m "Nightly site update $(date -u +%F)"
-            git push
+            # This job runs for hours, so main may have advanced (a manual push or another dispatch)
+            # since checkout. A plain push then fails "fetch first" and the whole run's data is lost.
+            # Rebase our site/-only commit onto the latest main and retry a few times.
+            pushed=""
+            for i in 1 2 3 4 5; do
+              git fetch origin main
+              if git rebase origin/main; then
+                if git push origin HEAD:main; then pushed=1; break; fi
+              else
+                git rebase --abort || true
+              fi
+              echo "commit/push attempt $i failed; main moved — retrying in a moment…"
+              sleep $((RANDOM % 6 + 4))
+            done
+            [ -n "$pushed" ] || { echo "::error::could not push site update after 5 rebase+retry attempts"; exit 1; }
           fi
 
       - name: Upload Pages artifact
