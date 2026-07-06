@@ -1615,19 +1615,30 @@ class CalvertCityPlumeEngine:
 
         import concurrent.futures
         manifest_entries = []
-        # ONE deposition worker by default: two concurrent concplot/ghostscript renders on a wide-plume
-        # day (e.g. 2025-03-08 SE winds) spiked the 16 GB CI runner into an OOM kill (exit 143). Serial
-        # is slower but fits in memory. Override with PLUME_DEP_WORKERS=2 on a roomier machine.
-        max_workers = max(1, int(os.environ.get("PLUME_DEP_WORKERS", "1")))
 
-        def _mem_avail_mb():
+        def _meminfo_gb(key):
             try:
                 with open("/proc/meminfo") as f:
                     for line in f:
-                        if line.startswith("MemAvailable:"):
-                            return int(line.split()[1]) // 1024
+                        if line.startswith(key + ":"):
+                            return int(line.split()[1]) / 1024 / 1024
             except Exception:
                 return None
+
+        def _mem_avail_mb():
+            g = _meminfo_gb("MemAvailable")
+            return int(g * 1024) if g is not None else None
+
+        # Auto-scale deposition parallelism to the machine's RAM so NO day (however heavy) can
+        # over-subscribe memory and get OOM-killed (exit 143 — what 2025-03-08's wide SE-wind plume
+        # did with 2 concurrent concplot renders on the 16 GB CI box). Each concurrent render of a
+        # wide plume can use several GB, so budget ~one worker per ~12 GB total RAM: CI's 16 GB → 1
+        # (safe on every day); a 32/64 GB dev box → 2/5 (fast). Override with PLUME_DEP_WORKERS.
+        _total_gb = _meminfo_gb("MemTotal")
+        _auto = max(1, int(_total_gb // 12)) if _total_gb else 1
+        max_workers = max(1, int(os.environ.get("PLUME_DEP_WORKERS", str(_auto))))
+        print(f"Deposition pipeline: {max_workers} parallel worker(s)"
+              + (f" (auto from {_total_gb:.0f} GB RAM)" if _total_gb and 'PLUME_DEP_WORKERS' not in os.environ else ""))
 
         done = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
