@@ -4346,7 +4346,12 @@ class CalvertCityPlumeEngine:
         // Populate the dropdown from whatever dates are embedded (one <option> per available day),
         // so switching between simulation days works regardless of how many are bundled.
         (function initDatePicker() {{
-            const entries = (typeof PLUME_MANIFEST !== 'undefined' && PLUME_MANIFEST.dates) ? PLUME_MANIFEST.dates : [];
+            const entries = (typeof PLUME_MANIFEST !== 'undefined' && PLUME_MANIFEST.dates) ? PLUME_MANIFEST.dates.slice() : [];
+            // Newest date at the TOP of the dropdown (descending). ISO YYYY-MM-DD sorts lexically =
+            // chronologically, so this puts the most recent day first; the older pinned showcase days
+            // (still labeled) fall to the bottom. Native <select> scrolls automatically once the list
+            // grows (e.g. the full 30-day rolling window + pinned).
+            entries.sort((a, b) => (a.date < b.date ? 1 : (a.date > b.date ? -1 : 0)));
             datePicker.innerHTML = '';
             entries.forEach(entry => {{
                 const d = entry.date;
