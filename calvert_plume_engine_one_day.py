@@ -3517,6 +3517,13 @@ class CalvertCityPlumeEngine:
         .info-pop {{ display:none; position:fixed; z-index:10000; width:270px; padding:10px 12px; background:#121214; color:#e5e7eb; border:1px solid rgba(255,255,255,.15); border-radius:8px; font-size:10px; line-height:1.55; font-weight:400; letter-spacing:normal; text-align:left; box-shadow:0 10px 28px rgba(0,0,0,.55); white-space:normal; pointer-events:none; }}
         .info-pop b {{ color:#fff; font-weight:600; }}
         .info-pop .ip-sep {{ display:block; height:6px; }}
+        /* Related-tool link — Odor Forecast (external, opens new tab) */
+        .odor-link {{ display:flex; flex-direction:column; gap:2px; margin-top:14px; padding:10px 12px; border-radius:10px; text-decoration:none; background:rgba(59,130,246,.14); border:1px solid rgba(59,130,246,.42); transition:background .15s ease, border-color .15s ease, transform .08s ease; }}
+        .odor-link:hover {{ background:rgba(59,130,246,.24); border-color:rgba(59,130,246,.75); }}
+        .odor-link:active {{ transform:translateY(1px); }}
+        .odor-link-main {{ font-family:var(--header-font); font-size:12.5px; font-weight:600; color:var(--text-main); display:flex; align-items:center; gap:6px; }}
+        .odor-link-arrow {{ color:var(--primary-accent); font-size:13px; font-weight:700; }}
+        .odor-link-hint {{ font-size:9px; color:var(--text-muted); letter-spacing:.03em; }}
         /* LOCATIONS collapsible section */
         .loc-toggle-btn {{ display:flex; align-items:center; justify-content:space-between; width:100%; background:none; border:none; padding:0; cursor:pointer; color:var(--text-muted); font-size:10px; font-weight:600; letter-spacing:.05em; }}
         .loc-toggle-btn:hover {{ color:var(--text-primary); }}
@@ -3650,6 +3657,12 @@ class CalvertCityPlumeEngine:
                         </div>
                     </div>
                 </div>
+
+                <!-- ══ Related tool: Odor Forecast (external, opens in a new tab) ══ -->
+                <a href="https://nwright083.github.io/weather-variable-analysis/" target="_blank" rel="noopener noreferrer" class="odor-link" title="Opens the Odor Forecast tool in a new browser tab">
+                    <span class="odor-link-main">View Odor Forecast <span class="odor-link-arrow">↗</span></span>
+                    <span class="odor-link-hint">opens in a new tab</span>
+                </a>
 
                 <!-- Simulation Sandbox removed: particle motion/appearance are fixed so viewers
                      can't alter the model. Defaults live in the getSandbox*() getters + the
