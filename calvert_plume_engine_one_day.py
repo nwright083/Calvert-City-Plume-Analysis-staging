@@ -1615,7 +1615,21 @@ class CalvertCityPlumeEngine:
 
         import concurrent.futures
         manifest_entries = []
-        max_workers = 2
+        # ONE deposition worker by default: two concurrent concplot/ghostscript renders on a wide-plume
+        # day (e.g. 2025-03-08 SE winds) spiked the 16 GB CI runner into an OOM kill (exit 143). Serial
+        # is slower but fits in memory. Override with PLUME_DEP_WORKERS=2 on a roomier machine.
+        max_workers = max(1, int(os.environ.get("PLUME_DEP_WORKERS", "1")))
+
+        def _mem_avail_mb():
+            try:
+                with open("/proc/meminfo") as f:
+                    for line in f:
+                        if line.startswith("MemAvailable:"):
+                            return int(line.split()[1]) // 1024
+            except Exception:
+                return None
+
+        done = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [
                 executor.submit(
@@ -1628,6 +1642,11 @@ class CalvertCityPlumeEngine:
                 entry = future.result()
                 if entry:
                     manifest_entries.append(entry)
+                done += 1
+                if done % 15 == 0:
+                    mf = _mem_avail_mb()
+                    if mf is not None:
+                        print(f"  [resource] {done}/{len(futures)} dep runs done; MemAvailable {mf} MB")
 
         manifest = {
             "date": date_str,
