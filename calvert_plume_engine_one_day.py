@@ -3080,10 +3080,13 @@ class CalvertCityPlumeEngine:
 
         .time-readout {{
             display: flex;
-            align-items: baseline;
+            align-items: center;
             gap: 8px;
             min-width: 140px;
         }}
+
+        .time-meta {{ display: flex; flex-direction: column; line-height: 1.25; }}
+        .time-date {{ font-size: 9px; color: var(--text-muted); letter-spacing: 0.02em; text-transform: none; }}
 
         .time-val {{
             font-family: var(--header-font);
@@ -3688,7 +3691,11 @@ class CalvertCityPlumeEngine:
             <div class="controls-row">
                 <div class="time-readout">
                     <span class="time-val" id="time-display">12:00</span>
-                    <span class="time-label" id="ampm-display">AM</span>
+                    <span class="time-meta">
+                        <span class="time-label" id="ampm-display">AM</span>
+                        <span class="time-date" id="time-date-display"></span>
+                    </span>
+                    <span class="dep-info-btn" style="align-self:center; margin-left:2px;">ⓘ<span class="info-pop"><b>Times are shown in Calvert City local time (Central — CST/CDT).</b><span class="ip-sep"></span>The model runs on the day's UTC weather (NOAA HRRR) and the clock converts each hour to local time. Because a UTC day spans two local dates, the timeline starts the prior evening (~7&nbsp;PM) and ends the next evening — the small date under the clock is the actual local date at each moment (it rolls over at local midnight).</span></span>
                 </div>
                 
                 <div class="slider-container">
@@ -4622,21 +4629,25 @@ class CalvertCityPlumeEngine:
             dt.setUTCHours(h, m, 0, 0);
             try {{
                 const parts = new Intl.DateTimeFormat('en-US', {{
-                    timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit',
-                    hour12: true, timeZoneName: 'short'
+                    timeZone: 'America/Chicago', month: 'short', day: 'numeric',
+                    hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short'
                 }}).formatToParts(dt);
-                let hh = '', mm = '', ap = '', tz = 'CT';
+                let hh = '', mm = '', ap = '', tz = 'CT', mon = '', day = '';
                 for (const p of parts) {{
                     if (p.type === 'hour') hh = p.value;
                     else if (p.type === 'minute') mm = p.value;
                     else if (p.type === 'dayPeriod') ap = p.value.toUpperCase();
                     else if (p.type === 'timeZoneName') tz = p.value;
+                    else if (p.type === 'month') mon = p.value;
+                    else if (p.type === 'day') day = p.value;
                 }}
-                return {{ time: String(hh).padStart(2, '0') + ':' + mm, ampm: ap + ' ' + tz }};
+                // date = the LOCAL (Central) calendar date for this frame. Because a UTC sim-day maps to
+                // two Central dates, this makes the ~8 PM-prev-evening → ~6 PM start/end explicit.
+                return {{ time: String(hh).padStart(2, '0') + ':' + mm, ampm: ap + ' ' + tz, date: mon + ' ' + day }};
             }} catch (e) {{
                 const hours12 = h % 12 === 0 ? 12 : h % 12;
                 const ampm = h >= 12 ? 'PM' : 'AM';
-                return {{ time: String(hours12).padStart(2, '0') + ':' + String(m).padStart(2, '0'), ampm: ampm + ' UTC' }};
+                return {{ time: String(hours12).padStart(2, '0') + ':' + String(m).padStart(2, '0'), ampm: ampm + ' UTC', date: '' }};
             }}
         }}
         
@@ -5830,12 +5841,14 @@ class CalvertCityPlumeEngine:
         const timeSlider = document.getElementById('time-slider');
         const timeValDisplay = document.getElementById('time-display');
         const ampmDisplay = document.getElementById('ampm-display');
-        
+        const timeDateDisplay = document.getElementById('time-date-display');
+
         function updateHUD() {{
             timeSlider.value = playbackTime.toFixed(2);
-            const {{ time, ampm }} = formatSimulationTime(playbackTime);
+            const {{ time, ampm, date }} = formatSimulationTime(playbackTime);
             timeValDisplay.textContent = time;
             ampmDisplay.textContent = ampm;
+            if (timeDateDisplay) timeDateDisplay.textContent = date || '';
 
             let currentHourInt = Math.floor(playbackTime);
             if (currentHourInt < 0) currentHourInt = 0;
