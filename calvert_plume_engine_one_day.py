@@ -437,8 +437,14 @@ import datetime
 import subprocess
 import argparse
 import csv
+import re
 import xml.etree.ElementTree as ET
+from zoneinfo import ZoneInfo
 from typing import Dict, List, Any
+
+# Calvert City is in the Central time zone. The simulation is windowed to a full LOCAL calendar day
+# (midnight→midnight Central), DST-aware. All timestamps below are derived from this.
+CENTRAL_TZ = ZoneInfo("America/Chicago")
 
 class CalvertCityPlumeEngine:
     """
@@ -579,6 +585,16 @@ class CalvertCityPlumeEngine:
         """
         self.date_str = date_str
         self.date_obj = datetime.datetime.strptime(self.date_str, "%Y-%m-%d")
+        # self.date_str is a CALVERT CITY (Central) calendar date. sim_start_utc = the UTC instant of
+        # that day's LOCAL midnight (05:00 UTC in CDT / 06:00 in CST). The 24-hour sim window, the
+        # HRRR weather, the CONTROL start times, and the particle frame indices are all anchored here,
+        # so frame h == h:00 Central and a "day" is the residents' actual midnight→midnight day.
+        try:
+            _local_midnight = datetime.datetime(
+                self.date_obj.year, self.date_obj.month, self.date_obj.day, tzinfo=CENTRAL_TZ)
+            self.sim_start_utc = _local_midnight.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        except Exception:
+            self.sim_start_utc = self.date_obj  # fallback: treat as a UTC day
         self.met_file_path = os.path.join(self.workspace_dir, f"MET_{self.date_obj.strftime('%Y%m%d')}.ARL")
         
     def parse_tri_csv(self) -> Dict[str, list]:
@@ -733,10 +749,11 @@ class CalvertCityPlumeEngine:
         from herbie import Herbie
         
         grib_files = []
-        for hour in range(24):
-            dt_hour = self.date_obj.replace(hour=hour)
+        # 24 hourly HRRR analyses over the LOCAL (Central) day: sim_start_utc + 0..23 h (spans two UTC dates).
+        for k in range(24):
+            dt_hour = self.sim_start_utc + datetime.timedelta(hours=k)
             date_time_str = dt_hour.strftime("%Y-%m-%d %H:%M")
-            print(f"Downloading HRRR grid for simulation hour {hour:02d}:00 ({date_time_str})...")
+            print(f"Downloading HRRR grid for local-day hour {k:02d} ({date_time_str}Z)...")
             try:
                 # Retrieve HRRR pressure level grid (fxx=0 represents analysis hour)
                 h = Herbie(
@@ -751,9 +768,9 @@ class CalvertCityPlumeEngine:
                     print(f"File cached at: {file_path}")
                     grib_files.append(str(file_path))
                 else:
-                    print(f"Warning: Download returned empty or path does not exist for hour {hour}.")
+                    print(f"Warning: Download returned empty or path does not exist for local-day hour {k}.")
             except Exception as e:
-                print(f"Error downloading weather grid for hour {hour}: {e}")
+                print(f"Error downloading weather grid for local-day hour {k}: {e}")
                 
         if not grib_files:
             raise RuntimeError("Weather download yielded zero files. Simulation aborted.")
@@ -840,20 +857,23 @@ class CalvertCityPlumeEngine:
             os.remove(self.met_file_path)
 
         ok_hours = 0
-        for hour in range(24):
-            dt_hour = self.date_obj.replace(hour=hour)
+        # 24 hourly HRRR analyses covering the LOCAL (Central) day: sim_start_utc + 0..23 h. This
+        # window spans two UTC dates (e.g. 05:00 UTC Jul 4 → 04:00 UTC Jul 5 in CDT); append in
+        # chronological order so the ARL time records are monotonic.
+        for k in range(24):
+            dt_hour = self.sim_start_utc + datetime.timedelta(hours=k)
             try:
                 h = Herbie(dt_hour, model="hrrr", product="prs", fxx=0, save_dir=self.grib_dir)
                 fp = h.download()
                 if not fp or not os.path.exists(fp):
-                    print(f"  Hour {hour:02d}: download returned nothing; skipping.")
+                    print(f"  Window h{k:02d} ({dt_hour:%m-%d %H}Z): download returned nothing; skipping.")
                     continue
                 fp = str(fp)
                 if self._convert_one_grib(fp):
                     ok_hours += 1
-                    print(f"  Hour {hour:02d}: converted + appended ({ok_hours} total).")
+                    print(f"  Window h{k:02d} ({dt_hour:%m-%d %H}Z): converted + appended ({ok_hours} total).")
             except Exception as e:
-                print(f"  Hour {hour:02d}: {e}")
+                print(f"  Window h{k:02d}: {e}")
             finally:
                 # Delete this hour's GRIB immediately to bound disk (whether or not convert succeeded).
                 try:
@@ -1052,7 +1072,7 @@ class CalvertCityPlumeEngine:
         
         # ── Build CONTROL file lines ──
         lines = [
-            f"{yy} {mm} {dd} 01",                             # Start time (YY MM DD HH) - 01 UTC (t00z met unavailable)
+            self.sim_start_utc.strftime("%y %m %d %H"),       # Start (YY MM DD HH) UTC = local midnight (Central)
             "2",                                              # Number of starting locations (stack and fugitive)
             # Starting location 1: Elevated Stack (Point Source)
             f"{facility['lat']:.4f} {facility['lon']:.4f} 30.0 1.0 0.0",
@@ -1072,7 +1092,7 @@ class CalvertCityPlumeEngine:
             lines.append(sp["label"])                          # Species identifier (max 4 chars)
             lines.append(f"{sp['emission_g_hr']:.4f}")         # Emission rate (g/hr)
             lines.append("23.0")                               # Emission duration (hours)
-            lines.append(f"{yy} {mm} {dd} 01 00")              # Release start (YY MM DD HH MM)
+            lines.append(self.sim_start_utc.strftime("%y %m %d %H %M"))  # Release start = local midnight (Central)
         
         # ── Concentration grid definition ──
         lines.extend([
@@ -1199,7 +1219,7 @@ class CalvertCityPlumeEngine:
         in_cloud = 0.0 if dry_only else p["in_cloud_ratio"]
         below_cloud = 0.0 if dry_only else p["below_cloud_s"]
         lines = [
-            f"{yy} {mm} {dd} 01",
+            self.sim_start_utc.strftime("%y %m %d %H"),       # start UTC = local midnight (Central)
             "1",
             f"{facility['lat']:.4f} {facility['lon']:.4f} {height:.1f}",
             "23", "0", "10000.0", "1",
@@ -1207,7 +1227,7 @@ class CalvertCityPlumeEngine:
             os.path.basename(self.met_file_path),
             "1", tag,
             f"{emission_g_hr:.4f}", "23.0",
-            f"{yy} {mm} {dd} 01 00",
+            self.sim_start_utc.strftime("%y %m %d %H %M"),    # sampling start = local midnight (Central)
             "1",
             f"{MAP_CENTER[0]:.4f} {MAP_CENTER[1]:.4f}",   # fixed grid center (all chemicals aligned)
             f"{grid_spacing:.3f} {grid_spacing:.3f}",
@@ -1420,9 +1440,11 @@ class CalvertCityPlumeEngine:
         if not all_features:
             return None
 
-        # Hourly frames: frame_idx 0 = simulation hour 2 (first 1h output), k = hour (k+2).
+        # Hourly frames: sampling starts at local midnight (sim hour 0), so the first 1-hour average
+        # (frame_idx 0) is stamped at sim hour 1 → the frontend maps frame k to local hour (k+start_hour).
+        # (If a verify run shows deposition lagging/leading the particles by 1 h, adjust this by ±1.)
         num_frames = max(f["properties"]["hour_frame"] for f in all_features) + 1
-        start_hour = 2
+        start_hour = 1
 
         fac_slug = fac_name.lower().replace(" ", "_").replace(".", "").replace("&", "and")
         filename = out_name or f"{fac_slug}_{chem_slug}.json"
@@ -1822,22 +1844,23 @@ class CalvertCityPlumeEngine:
                     continue
                     
                 try:
-                    # Extract hour from time column. par2asc's whitespace/zero-padding differs by
-                    # Fortran compiler: macOS emits "M/ D/YY  H: M" (space before minutes) while the
-                    # Linux/CI build emits compact "M/DD/YY HH:MM". Take the hour as the token BEFORE
-                    # the first colon so both parse correctly. (The old `replace(":","")` turned
-                    # "14:00" into 1400 → rejected by the 0..24 filter → empty wind grid on CI.)
+                    # par2asc time column is a UTC datetime, either "M/ D/YY  H: M" (macOS) or compact
+                    # "M/DD/YY HH:MM" (Linux/CI). Parse the FULL datetime and take the hour as the OFFSET
+                    # from the sim start (local midnight in UTC), so frames index 0..23 on the LOCAL day
+                    # even though the UTC clock crosses midnight partway through the window.
                     time_str = cols[time_idx].strip()
-                    time_parts = time_str.split()
-                    hour = 1  # default
-                    for part in time_parts:
-                        if ":" in part:
-                            hour = int(part.split(":")[0].strip())
-                            break
+                    _mt = re.match(r"\s*(\d+)\s*/\s*(\d+)\s*/\s*(\d+)\s+(\d+)\s*:\s*(\d+)", time_str)
+                    if _mt:
+                        _mo, _da, _yr, _hh, _mi = (int(x) for x in _mt.groups())
+                        _yr = _yr + 2000 if _yr < 100 else _yr
+                        _dump = datetime.datetime(_yr, _mo, _da, _hh, _mi)
+                        hour = int(round((_dump - self.sim_start_utc).total_seconds() / 3600.0))
+                    else:
+                        hour = 1  # default
                     if not getattr(self, "_time_fmt_logged", False):
-                        # One-line confirmation of par2asc's actual time format + parsed hour, so a
-                        # future empty-wind-grid regression is immediately visible in the log.
-                        print(f"  [particle parse] time sample {time_str!r} -> hour {hour}")
+                        # One-line confirmation of the format + start-relative hour, so a future
+                        # frame-indexing regression is immediately visible in the log.
+                        print(f"  [particle parse] time sample {time_str!r} -> local-day hour {hour}")
                         self._time_fmt_logged = True
                     
                     lat = float(cols[lat_idx])
@@ -3695,7 +3718,7 @@ class CalvertCityPlumeEngine:
                         <span class="time-label" id="ampm-display">AM</span>
                         <span class="time-date" id="time-date-display"></span>
                     </span>
-                    <span class="dep-info-btn" style="align-self:center; margin-left:2px;">ⓘ<span class="info-pop"><b>Times are shown in Calvert City local time (Central — CST/CDT).</b><span class="ip-sep"></span>The model runs on the day's UTC weather (NOAA HRRR) and the clock converts each hour to local time. Because a UTC day spans two local dates, the timeline starts the prior evening (~7&nbsp;PM) and ends the next evening — the small date under the clock is the actual local date at each moment (it rolls over at local midnight).</span></span>
+                    <span class="dep-info-btn" style="align-self:center; margin-left:2px;">ⓘ<span class="info-pop"><b>Times are shown in Calvert City local time (Central — CST/CDT).</b><span class="ip-sep"></span>Each day covers the full <b>local calendar day</b> — midnight to midnight Central — simulated from NOAA HRRR hourly weather. So 12:00&nbsp;AM is local midnight on the selected date and the timeline runs through that same day.</span></span>
                 </div>
                 
                 <div class="slider-container">
@@ -4618,37 +4641,31 @@ class CalvertCityPlumeEngine:
         
         // Helper formatting functions
         function formatSimulationTime(decHours) {{
-            // The simulation runs on UTC hours. Display them in Calvert City's LOCAL time
-            // (America/Chicago = Central, DST-aware: CDT in summer, CST in winter) so residents
-            // read the plume's timing in their own clock, not UTC.
+            // The sim is windowed to a Calvert City (Central) calendar day, so frame hour h IS h:00
+            // LOCAL (CST/CDT) on the active date — no UTC conversion, no day-crossing. We only read
+            // the zone abbreviation (CST vs CDT) and the calendar date from the active date via Intl.
             const totalMinutes = Math.floor(decHours * 60);
-            const h = Math.floor(totalMinutes / 60);
+            let h = Math.floor(totalMinutes / 60);
             const m = totalMinutes % 60;
-            const base = (typeof activeDate === 'string' && activeDate) ? activeDate : '2000-01-01';
-            const dt = new Date(base + 'T00:00:00Z');
-            dt.setUTCHours(h, m, 0, 0);
+            if (h < 0) h = 0;
+            if (h > 23) h = 23;
+            const hour12 = (h % 12 === 0) ? 12 : (h % 12);
+            const ap = h < 12 ? 'AM' : 'PM';
+            let tz = 'CT', dateLbl = '';
             try {{
-                const parts = new Intl.DateTimeFormat('en-US', {{
-                    timeZone: 'America/Chicago', month: 'short', day: 'numeric',
-                    hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short'
-                }}).formatToParts(dt);
-                let hh = '', mm = '', ap = '', tz = 'CT', mon = '', day = '';
-                for (const p of parts) {{
-                    if (p.type === 'hour') hh = p.value;
-                    else if (p.type === 'minute') mm = p.value;
-                    else if (p.type === 'dayPeriod') ap = p.value.toUpperCase();
-                    else if (p.type === 'timeZoneName') tz = p.value;
+                const base = (typeof activeDate === 'string' && activeDate) ? activeDate : '2000-01-01';
+                const ref = new Date(base + 'T18:00:00Z');   // ~midday Central on `base`: safe zone+date read
+                let mon = '', day = '';
+                for (const p of new Intl.DateTimeFormat('en-US', {{
+                        timeZone: 'America/Chicago', timeZoneName: 'short', month: 'short', day: 'numeric'
+                    }}).formatToParts(ref)) {{
+                    if (p.type === 'timeZoneName') tz = p.value;
                     else if (p.type === 'month') mon = p.value;
                     else if (p.type === 'day') day = p.value;
                 }}
-                // date = the LOCAL (Central) calendar date for this frame. Because a UTC sim-day maps to
-                // two Central dates, this makes the ~8 PM-prev-evening → ~6 PM start/end explicit.
-                return {{ time: String(hh).padStart(2, '0') + ':' + mm, ampm: ap + ' ' + tz, date: mon + ' ' + day }};
-            }} catch (e) {{
-                const hours12 = h % 12 === 0 ? 12 : h % 12;
-                const ampm = h >= 12 ? 'PM' : 'AM';
-                return {{ time: String(hours12).padStart(2, '0') + ':' + String(m).padStart(2, '0'), ampm: ampm + ' UTC', date: '' }};
-            }}
+                dateLbl = mon + ' ' + day;
+            }} catch (e) {{ tz = 'CT'; }}
+            return {{ time: String(hour12).padStart(2, '0') + ':' + String(m).padStart(2, '0'), ampm: ap + ' ' + tz, date: dateLbl }};
         }}
         
         function hexToRgbA(hex, opacity) {{

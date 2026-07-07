@@ -64,7 +64,9 @@ def main() -> int:
     ap.add_argument("--force", action="store_true", help="Re-simulate target date(s) even if a bundle already exists (e.g. to refresh pinned days after a model change).")
     a = ap.parse_args()
 
-    today = datetime.datetime.now(datetime.timezone.utc).date()
+    # Target dates are Calvert City (Central) calendar days, so "yesterday" is yesterday LOCAL.
+    from zoneinfo import ZoneInfo
+    today = datetime.datetime.now(ZoneInfo("America/Chicago")).date()
     if a.date:
         targets = [d.strip() for d in a.date.split(",") if d.strip()]
     else:
