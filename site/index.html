@@ -722,6 +722,13 @@
         .info-pop { display:none; position:fixed; z-index:10000; width:270px; padding:10px 12px; background:#121214; color:#e5e7eb; border:1px solid rgba(255,255,255,.15); border-radius:8px; font-size:10px; line-height:1.55; font-weight:400; letter-spacing:normal; text-align:left; box-shadow:0 10px 28px rgba(0,0,0,.55); white-space:normal; pointer-events:none; }
         .info-pop b { color:#fff; font-weight:600; }
         .info-pop .ip-sep { display:block; height:6px; }
+        /* Related-tool link — Odor Forecast (external, opens new tab) */
+        .odor-link { display:flex; flex-direction:column; gap:2px; margin-top:14px; padding:10px 12px; border-radius:10px; text-decoration:none; background:rgba(59,130,246,.14); border:1px solid rgba(59,130,246,.42); transition:background .15s ease, border-color .15s ease, transform .08s ease; }
+        .odor-link:hover { background:rgba(59,130,246,.24); border-color:rgba(59,130,246,.75); }
+        .odor-link:active { transform:translateY(1px); }
+        .odor-link-main { font-family:var(--header-font); font-size:12.5px; font-weight:600; color:var(--text-main); display:flex; align-items:center; gap:6px; }
+        .odor-link-arrow { color:var(--primary-accent); font-size:13px; font-weight:700; }
+        .odor-link-hint { font-size:9px; color:var(--text-muted); letter-spacing:.03em; }
         /* LOCATIONS collapsible section */
         .loc-toggle-btn { display:flex; align-items:center; justify-content:space-between; width:100%; background:none; border:none; padding:0; cursor:pointer; color:var(--text-muted); font-size:10px; font-weight:600; letter-spacing:.05em; }
         .loc-toggle-btn:hover { color:var(--text-primary); }
@@ -856,6 +863,12 @@
                     </div>
                 </div>
 
+                <!-- ══ Related tool: Odor Forecast (external, opens in a new tab) ══ -->
+                <a href="https://nwright083.github.io/weather-variable-analysis/" target="_blank" rel="noopener noreferrer" class="odor-link" title="Opens the Odor Forecast tool in a new browser tab">
+                    <span class="odor-link-main">View Odor Forecast <span class="odor-link-arrow">↗</span></span>
+                    <span class="odor-link-hint">opens in a new tab</span>
+                </a>
+
                 <!-- Simulation Sandbox removed: particle motion/appearance are fixed so viewers
                      can't alter the model. Defaults live in the getSandbox*() getters + the
                      footprintOpacity constant. -->
@@ -943,7 +956,7 @@
         let depositionArchive = {};
         let activeDate = null, PLUME_DATA = null, regionalMonitorData = null;
         const VET_CLINICS = [{"name":"Ceglinski Animal Clinic","address":"5401 Blandville Rd, Paducah, KY 42001","lat":37.05089,"lon":-88.67557},{"name":"Calvert City Animal Hospital","address":"4267 US-62, Calvert City, KY 42029","lat":37.00378,"lon":-88.34534},{"name":"Lone Oak Animal Clinic","address":"125 Augusta Ave, Paducah, KY 42003","lat":37.03694,"lon":-88.66204},{"name":"Heartland Veterinary Hospital","address":"3137 Olivet Church Rd, Paducah, KY 42001","lat":37.07749,"lon":-88.69746},{"name":"Lakeland Animal Hospital","address":"2044 US-641, Benton, KY 42025","lat":36.84647,"lon":-88.34991},{"name":"Companion Animal Hospital","address":"1831 US-641, Benton, KY 42025","lat":36.84823,"lon":-88.34994},{"name":"Animal Kare Center","address":"2625 Olivet Church Rd, Paducah, KY 42001","lat":37.06824,"lon":-88.70188},{"name":"Progressive Animal Healthcare","address":"2630 James Sanders Blvd, Paducah, KY 42001","lat":37.08079,"lon":-88.68488},{"name":"Cummings Veterinary Clinic","address":"3800 Clarks River Rd, Paducah, KY 42003","lat":37.04681,"lon":-88.55789},{"name":"Flanary Veterinary Clinic","address":"200 Eagle Nest Dr, Paducah, KY 42003","lat":37.00849,"lon":-88.50918},{"name":"Lyon County Animal Hospital","address":"638 Trade Ave, Eddyville, KY 42038","lat":37.08869,"lon":-88.08644},{"name":"Paducah Veterinary Clinic","address":"3205 Central Ave, Paducah, KY 42001","lat":37.07613,"lon":-88.64278},{"name":"Animal Wellness Center","address":"120 Cave Thomas Dr, Paducah, KY 42001","lat":37.0313,"lon":-88.6708},{"name":"Veterinary Institute of Paducah","address":"3526 Park Plaza Rd, Paducah, KY 42001","lat":37.08201,"lon":-88.66502},{"name":"Equine Vet Services","address":"4025 Coleman Cut Rd, Paducah, KY 42001","lat":36.96969,"lon":-88.76676}];
-        const PLUME_MANIFEST = {"generated_at":"2026-07-06T20:23:04Z","newest":"2026-07-05","dates":[{"date":"2026-07-04"},{"date":"2026-07-05"},{"date":"2024-01-08","label":"Storm \u2014 winds from the east (plume over Paducah)","pinned":true},{"date":"2025-02-15","label":"Heavy rain \u2014 strong deposition","pinned":true},{"date":"2025-03-08","label":"Southeast winds (toward Benton)","pinned":true}]};   // { generated_at, dates:[{date,label}] }
+        const PLUME_MANIFEST = {"generated_at":"2026-07-07T01:02:21Z","newest":"2026-07-06","dates":[{"date":"2026-07-04"},{"date":"2026-07-05"},{"date":"2026-07-06"},{"date":"2024-01-08","label":"Storm \u2014 winds from the east (plume over Paducah)","pinned":true},{"date":"2025-02-15","label":"Heavy rain \u2014 strong deposition","pinned":true},{"date":"2025-03-08","label":"Southeast winds (toward Benton)","pinned":true}]};   // { generated_at, dates:[{date,label}] }
 
         // Friendly fatal-error card (opened via file://, or a pruned/missing date).
         function pd_showFatal(msg) {
