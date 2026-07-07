@@ -814,33 +814,31 @@
         
         // Helper formatting functions
         function formatSimulationTime(decHours) {
-            // The simulation runs on UTC hours. Display them in Calvert City's LOCAL time
-            // (America/Chicago = Central, DST-aware: CDT in summer, CST in winter) so residents
-            // read the plume's timing in their own clock, not UTC.
+            // The sim is windowed to a Calvert City (Central) calendar day, so frame hour h IS h:00
+            // LOCAL (CST/CDT) on the active date — no UTC conversion, no day-crossing. We only read
+            // the zone abbreviation (CST vs CDT) and the calendar date from the active date via Intl.
             const totalMinutes = Math.floor(decHours * 60);
-            const h = Math.floor(totalMinutes / 60);
+            let h = Math.floor(totalMinutes / 60);
             const m = totalMinutes % 60;
-            const base = (typeof activeDate === 'string' && activeDate) ? activeDate : '2000-01-01';
-            const dt = new Date(base + 'T00:00:00Z');
-            dt.setUTCHours(h, m, 0, 0);
+            if (h < 0) h = 0;
+            if (h > 23) h = 23;
+            const hour12 = (h % 12 === 0) ? 12 : (h % 12);
+            const ap = h < 12 ? 'AM' : 'PM';
+            let tz = 'CT', dateLbl = '';
             try {
-                const parts = new Intl.DateTimeFormat('en-US', {
-                    timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit',
-                    hour12: true, timeZoneName: 'short'
-                }).formatToParts(dt);
-                let hh = '', mm = '', ap = '', tz = 'CT';
-                for (const p of parts) {
-                    if (p.type === 'hour') hh = p.value;
-                    else if (p.type === 'minute') mm = p.value;
-                    else if (p.type === 'dayPeriod') ap = p.value.toUpperCase();
-                    else if (p.type === 'timeZoneName') tz = p.value;
+                const base = (typeof activeDate === 'string' && activeDate) ? activeDate : '2000-01-01';
+                const ref = new Date(base + 'T18:00:00Z');   // ~midday Central on `base`: safe zone+date read
+                let mon = '', day = '';
+                for (const p of new Intl.DateTimeFormat('en-US', {
+                        timeZone: 'America/Chicago', timeZoneName: 'short', month: 'short', day: 'numeric'
+                    }).formatToParts(ref)) {
+                    if (p.type === 'timeZoneName') tz = p.value;
+                    else if (p.type === 'month') mon = p.value;
+                    else if (p.type === 'day') day = p.value;
                 }
-                return { time: String(hh).padStart(2, '0') + ':' + mm, ampm: ap + ' ' + tz };
-            } catch (e) {
-                const hours12 = h % 12 === 0 ? 12 : h % 12;
-                const ampm = h >= 12 ? 'PM' : 'AM';
-                return { time: String(hours12).padStart(2, '0') + ':' + String(m).padStart(2, '0'), ampm: ampm + ' UTC' };
-            }
+                dateLbl = mon + ' ' + day;
+            } catch (e) { tz = 'CT'; }
+            return { time: String(hour12).padStart(2, '0') + ':' + String(m).padStart(2, '0'), ampm: ap + ' ' + tz, date: dateLbl };
         }
         
         function hexToRgbA(hex, opacity) {
@@ -2033,12 +2031,14 @@
         const timeSlider = document.getElementById('time-slider');
         const timeValDisplay = document.getElementById('time-display');
         const ampmDisplay = document.getElementById('ampm-display');
-        
+        const timeDateDisplay = document.getElementById('time-date-display');
+
         function updateHUD() {
             timeSlider.value = playbackTime.toFixed(2);
-            const { time, ampm } = formatSimulationTime(playbackTime);
+            const { time, ampm, date } = formatSimulationTime(playbackTime);
             timeValDisplay.textContent = time;
             ampmDisplay.textContent = ampm;
+            if (timeDateDisplay) timeDateDisplay.textContent = date || '';
 
             let currentHourInt = Math.floor(playbackTime);
             if (currentHourInt < 0) currentHourInt = 0;
