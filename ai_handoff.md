@@ -1,6 +1,12 @@
 # AI Context — Calvert City Plume Analysis
 
-Last updated: 2026-07-02. Authoritative handoff for any AI working on this project. Read before editing.
+> **⚠️ HISTORICAL DEVELOPMENT LOG.** This is a chronological record of how the project was built and
+> debugged (useful for *why* things are the way they are), but it is **not** the primary reference and is
+> outdated in places (e.g. it predates the 13-chemical set, the auto-updating pipeline, and the Central-day
+> windowing). **Start with `README.md`** — it is the authoritative, current handoff. Trust `README.md`
+> wherever the two disagree.
+
+Last updated (log): 2026-07-02. Original note: authoritative handoff for any AI working on this project.
 
 ## Project
 Environmental-health (SRSP) dashboard for industrial atmospheric dispersion in Calvert City, KY.
