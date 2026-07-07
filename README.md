@@ -260,8 +260,8 @@ These each cost real debugging time — the fixes are in the code with comments,
   the key to a GitHub Actions secret. (Low sensitivity — free, rate-limited key — but don't hard-code it.)
 - **No secrets required** for the core pipeline: the HYSPLIT build is a public NOAA URL, and everything else
   is public data.
-- **`ai_handoff.md`** is a detailed chronological *development log* (useful history, but supersedes itself in
-  places — trust this README over it where they disagree).
+- **A few clearly-labeled `/* COMMENTED OUT … kept as reference */` blocks** remain in the front-end
+  template (superseded particle/deposition approaches). They're inert; leave or delete at your discretion.
 
 For the science/context, the contact is the SRSP project lead. Nightly failures email the repo owner
 automatically (GitHub Actions default).
