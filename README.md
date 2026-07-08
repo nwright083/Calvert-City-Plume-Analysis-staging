@@ -11,6 +11,8 @@ Leaflet map to **GitHub Pages**.
 - **Live site:** `https://<owner>.github.io/<repo>/` (GitHub Pages, source = GitHub Actions)
 - **Runs itself:** nightly via `.github/workflows/daily-plume.yml` — no server, no cost (public repo)
 - **Companion tool:** an "Odor Forecast" is linked from the control panel (separate repo)
+- **External data & files:** see [`DATA_SOURCES.md`](DATA_SOURCES.md) — every dataset from outside the code
+  (TRI emissions, VOC/AQS monitor data, HRRR weather, HYSPLIT) and how to obtain or refresh it
 
 ---
 
