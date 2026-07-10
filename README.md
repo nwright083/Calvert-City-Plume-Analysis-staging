@@ -4,8 +4,7 @@ An auto-updating public web dashboard that models the **airborne dispersion and 
 industrial chemicals** released from the facilities in Calvert City, Kentucky, and shows how the plume
 moves over the surrounding community (Paducah, Benton, Marshall/McCracken/Livingston counties) each day.
 
-Built for the SRSP environmental-health research project. Every night it simulates the **previous local
-(Central-time) day** with NOAA weather + NOAA's HYSPLIT dispersion model, and publishes an interactive
+Every night it simulates the **previous local (Central-time) day** with NOAA weather + NOAA's HYSPLIT dispersion model, and publishes an interactive
 Leaflet map to **GitHub Pages**.
 
 - **Live site:** `https://<owner>.github.io/<repo>/` (GitHub Pages, source = GitHub Actions)
@@ -50,7 +49,7 @@ python3 calvert_plume_engine_one_day.py --build-site        # rebuild index.html
 ```
 
 **In the cloud (normal operation):** nothing — the nightly GitHub Action does everything. To force a run,
-use **Actions → "Nightly plume update" → Run workflow** (inputs: `date`, `force`, `days_back`).
+use **Actions → "Nightly plume update" → Run workflow**.
 
 ---
 
@@ -255,9 +254,6 @@ These each cost real debugging time — the fixes are in the code with comments,
 
 ## Handoff / open items
 
-- **Production cutover** — this repo is the staging/proving ground. To hand it to production, point the
-  Pages deploy at the destination repo (or make the destination repo track this one). Enable Pages with
-  source = *GitHub Actions* and confirm `permissions: contents/pages/id-token: write` in the workflow.
 - **AQS credentials** — `fetch_aqs_data.py` has a default `--email`/`--key`; if you automate AQS pulls, move
   the key to a GitHub Actions secret. (Low sensitivity — free, rate-limited key — but don't hard-code it.)
 - **No secrets required** for the core pipeline: the HYSPLIT build is a public NOAA URL, and everything else
@@ -265,5 +261,4 @@ These each cost real debugging time — the fixes are in the code with comments,
 - **A few clearly-labeled `/* COMMENTED OUT … kept as reference */` blocks** remain in the front-end
   template (superseded particle/deposition approaches). They're inert; leave or delete at your discretion.
 
-For the science/context, the contact is the SRSP project lead. Nightly failures email the repo owner
-automatically (GitHub Actions default).
+Nightly failures email the repo owner automatically (GitHub Actions default).
