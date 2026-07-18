@@ -3550,6 +3550,8 @@ class CalvertCityPlumeEngine:
         .odor-link-main {{ font-family:var(--header-font); font-size:12.5px; font-weight:600; color:var(--text-main); display:flex; align-items:center; gap:6px; }}
         .odor-link-arrow {{ color:var(--primary-accent); font-size:13px; font-weight:700; }}
         .odor-link-hint {{ font-size:9px; color:var(--text-muted); letter-spacing:.03em; }}
+        .methodology-link {{ margin-top:8px; background:rgba(148,163,184,.10); border-color:rgba(148,163,184,.34); }}
+        .methodology-link:hover {{ background:rgba(148,163,184,.18); border-color:rgba(148,163,184,.6); }}
         /* LOCATIONS collapsible section */
         .loc-toggle-btn {{ display:flex; align-items:center; justify-content:space-between; width:100%; background:none; border:none; padding:0; cursor:pointer; color:var(--text-muted); font-size:10px; font-weight:600; letter-spacing:.05em; }}
         .loc-toggle-btn:hover {{ color:var(--text-primary); }}
@@ -3688,6 +3690,12 @@ class CalvertCityPlumeEngine:
                 <a href="https://nwright083.github.io/weather-variable-analysis/" target="_blank" rel="noopener noreferrer" class="odor-link" title="Opens the Odor Forecast tool in a new browser tab">
                     <span class="odor-link-main">View Odor Forecast <span class="odor-link-arrow">↗</span></span>
                     <span class="odor-link-hint">opens in a new tab</span>
+                </a>
+
+                <!-- ══ Methodology & Validation (internal page, same tab) ══ -->
+                <a href="methodology.html" class="odor-link methodology-link" title="How the plume model works and how it was validated">
+                    <span class="odor-link-main">Methodology &amp; Validation <span class="odor-link-arrow" style="color:var(--text-muted);">→</span></span>
+                    <span class="odor-link-hint">how the model works &amp; how well it works</span>
                 </a>
 
                 <!-- Simulation Sandbox removed: particle motion/appearance are fixed so viewers
@@ -6335,6 +6343,17 @@ class CalvertCityPlumeEngine:
         with open(app_path, "w") as f:
             f.write(app_js)
         print(f"Fetch site written: {index_path} ({len(index_html)/1e3:.0f} KB) + app.js ({len(app_js)/1e6:.2f} MB)")
+
+        # Copy the standalone Methodology & Validation page into the deployed site. Its source lives at the
+        # repo root (easy to edit, not buried in this engine); site/ is gitignored and regenerated every
+        # build, so the page must be re-emitted here to survive the nightly rebuild + prune and reach Pages.
+        meth_src = os.path.join(self.workspace_dir, "methodology.html")
+        meth_dst = os.path.join(site_dir, "methodology.html")
+        if os.path.exists(meth_src):
+            shutil.copy(meth_src, meth_dst)
+            print(f"Methodology page copied: {meth_dst} ({os.path.getsize(meth_dst)/1e3:.0f} KB)")
+        else:
+            print(f"  (methodology.html not found at {meth_src}; skipping — nav link will 404)")
 
     def build_site(self):
         """Assemble the deployable fetch-based site from the per-date bundles on disk.
