@@ -93,7 +93,7 @@
     <p class="subtitle">Methodology and independent validation of the Calvert City industrial plume model.</p>
 
     <p class="lede">This page explains, in plain language first and then in technical detail, how the daily
-    plume forecast is produced, what the map is actually showing you, and how we tested it against real
+    plume forecast is produced, what the map is actually showing you, and how it was tested against real
     air-quality measurements. It covers the <strong>plume dispersion model</strong> only — the companion
     <a href="https://nwright083.github.io/weather-variable-analysis/" target="_blank" rel="noopener noreferrer">Odor Forecaster</a>
     has its own methodology page.</p>
@@ -111,13 +111,13 @@
     <p>The map includes a concentration layer. It is genuinely a concentration estimate — but like any
     model, its numbers carry uncertainty, and that uncertainty is not the same everywhere:</p>
     <ul>
-        <li><strong>Where the plume goes, and when, is the most trustworthy part.</strong> Our testing
-        (below) shows the model reliably predicts <em>when</em> a plume reaches a location.</li>
+        <li><strong>Where the plume goes, and when, is the most trustworthy part.</strong> Validation
+        testing (below) shows the model reliably predicts <em>when</em> a plume reaches a location.</li>
         <li><strong>Close to the fencelines, the concentration numbers are likely on the high side.</strong>
-        In our winter test the model over-stated near-fenceline concentrations by roughly <strong>5–6×</strong>.
+        In the winter test the model over-stated near-fenceline concentrations by roughly <strong>5–6×</strong>.
         This over-statement is largest in stable, calm, shallow-air conditions (winter nights) and is
-        expected to be smaller in summer's well-mixed air. Our magnitude testing so far is winter-only, so
-        we do not claim a single fixed multiplier.</li>
+        expected to be smaller in summer's well-mixed air. Magnitude testing so far is winter-only, so
+        no single fixed multiplier is claimed.</li>
         <li><strong>Farther from the sources, the magnitudes line up better</strong> — within about a factor
         of 1.5 of measured values.</li>
         <li><strong>The map shows a typical day, not a worst case.</strong> Emissions are entered as a steady
@@ -147,9 +147,9 @@
     (about 15&nbsp;m for stacks, 2&nbsp;m for fugitive sources) and lets the plume travel along near the
     ground. That is a deliberate choice:</p>
     <ul>
-        <li>We do not have the per-stack engineering parameters (height, exit velocity, gas temperature) that
-        a plume-rise calculation requires for the Calvert facilities — the TRI reports only total mass.</li>
-        <li>When we <em>did</em> test plume rise with real stack data in a separate benchmark (Pittsburgh,
+        <li>The per-stack engineering parameters (height, exit velocity, gas temperature) that a
+        plume-rise calculation requires are not available for the Calvert facilities — the TRI reports only total mass.</li>
+        <li>When plume rise <em>was</em> tested with real stack data in a separate benchmark (Pittsburgh,
         below), it pushed the plume <em>above</em> the monitors on calm, stable days and lost the model's
         skill entirely — swinging from over-prediction to large under-prediction. Grounding the plume is the
         validated, health-protective choice (it errs toward over-warning, not silence).</li>
@@ -157,7 +157,7 @@
     <p class="muted">Plume rise remains a planned future upgrade: source real stack parameters, re-validate,
     and likely apply it only when the atmosphere is deep enough to avoid pushing the plume over everyone.</p>
 
-    <h2>How we validated it</h2>
+    <h2>How the model was validated</h2>
     <p>The model was back-tested two ways: directly against Calvert-area EPA canister measurements, and against
     a data-rich benchmark city (Pittsburgh) with dense hourly monitoring, which stress-tests the same method
     with real statistical power. Two questions matter: does it get the <strong>timing</strong> right (when does
@@ -195,8 +195,8 @@
         </tbody>
     </table>
     </div>
-    <p>Right next to a source the story is different, and this is why we don't quote a single concentration
-    accuracy: near-field amounts depend heavily on the release-height assumption, swinging from over- to
+    <p>Right next to a source the story is different, and this is why a single concentration accuracy is
+    not quoted: near-field amounts depend heavily on the release-height assumption, swinging from over- to
     under-prediction. This sensitivity is exactly why the deployed model keeps the plume grounded and why the
     concentration layer should be read as a guide near the fencelines.</p>
     <div class="table-scroll">
